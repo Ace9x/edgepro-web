@@ -27,6 +27,7 @@ export function parseEvent(e, lg, path) {
 export async function scoreboard(lg, date) {
   const L = LEAGUES[lg]; const paths = L.multi || [L.p]; const dq = date ? '&dates=' + ymd(date) : '';
   const res = await Promise.allSettled(paths.map(p => j(`https://site.api.espn.com/apis/site/v2/sports/${p}/scoreboard?x=1${L.q || ''}${dq}`).then(d => (d.events || []).map(e => parseEvent(e, lg, p)))));
+  if (res.every(r => r.status === 'rejected')) throw res[0].reason;
   return res.flatMap(r => (r.status === 'fulfilled' ? r.value : [])).sort((a, b) => a.start.localeCompare(b.start));
 }
 export const eventFinal = async (path, id) => { const d = await j(`https://site.api.espn.com/apis/site/v2/sports/${path}/summary?event=${id}`); const c = d.header.competitions[0]; const H = c.competitors.find(t => t.homeAway === 'home'), A = c.competitors.find(t => t.homeAway === 'away'); return { completed: c.status.type.completed, home: +H.score, away: +A.score }; };
