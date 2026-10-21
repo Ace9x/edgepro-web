@@ -52,12 +52,13 @@ export function matchPoly(ev, list) {
   return out;
 }
 // ---------- Kalshi (public market data; may be blocked by CORS/region — reported honestly) ----------
-const kCache = {};
+const kCache = {}; let kBlocked = null; // Kalshi sends no CORS headers: after the first network failure, skip the other leagues instead of re-erroring
 export async function kalshi(lg) {
   const s = LEAGUES[lg].kalshi; if (!s) return { ok: false, why: 'no Kalshi game series for this league' };
   if (kCache[s]) return kCache[s];
+  if (kBlocked) return kBlocked;
   try { const d = await j(`https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=${s}&status=open&limit=1000`); return (kCache[s] = { ok: true, markets: d.markets || [] }); }
-  catch (e) { return (kCache[s] = { ok: false, why: 'Kalshi API not reachable from this browser (' + e.message.split(' ')[0] + ')' }); }
+  catch (e) { const r = { ok: false, why: 'Kalshi API not reachable from this browser (' + e.message.split(' ')[0] + ')' }; if (e instanceof TypeError) kBlocked = r; return (kCache[s] = r); }
 }
 export function matchKalshi(ev, k) {
   if (!k?.ok) return null; const f = t => [t.name, t.full].map(x => x.toLowerCase());

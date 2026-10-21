@@ -202,6 +202,7 @@ document.addEventListener('change', async ev => { const id = ev.target.id;
 const openAce = () => $('#ace').classList.remove('hide');
 $('#aceBtn').onclick = () => { $('#ace').classList.toggle('hide'); if (!$('#aceLog').children.length) say("I'm Ace. I only use the live data loaded on screen — no made-up stats. Try: a team name, 'best value', 'officials', 'live', or 'my record'."); };
 $('#aceX').onclick = () => $('#ace').classList.add('hide');
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') $('#ace').classList.add('hide'); });
 function say(t, me) { const d = document.createElement('div'); d.className = 'msg' + (me ? ' me' : ''); d.textContent = t; $('#aceLog').append(d); $('#aceLog').scrollTop = 1e9; if (!me && S.speak && 'speechSynthesis' in window) { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(t.slice(0, 400))); } }
 export function answer(q) {
   q = q.toLowerCase(); const evs = S.events;
