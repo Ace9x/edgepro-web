@@ -4,7 +4,7 @@ const BASE = process.env.BASE || 'https://ace9x.github.io/edgepro-web/', OUT = '
 const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
 let fail = 0, pass = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); c ? pass++ : fail++; };
 const b = await chromium.launch();
-const mk = async (vp, consent = true) => { const ctx = await b.newContext({ viewport: vp, userAgent: UA, extraHTTPHeaders: { 'sec-ch-ua': '"Chromium";v="140", "Google Chrome";v="140"' } }); if (consent) await ctx.addInitScript(() => { if (!localStorage.getItem('ep_consent')) localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-22', at: new Date().toISOString() })); localStorage.setItem('ep_whats', '"2026-10-22b"'); });
+const mk = async (vp, consent = true) => { const ctx = await b.newContext({ viewport: vp, userAgent: UA, extraHTTPHeaders: { 'sec-ch-ua': '"Chromium";v="140", "Google Chrome";v="140"' } }); if (consent) await ctx.addInitScript(() => { if (!localStorage.getItem('ep_consent')) localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-22', at: new Date().toISOString() })); localStorage.setItem('ep_whats', '"2026-10-22c"'); });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|ERR_|CORS|net::/.test(m.text())) errs.push(m.text()); }); return { ctx, p, errs }; };
 for (const [tag, vp] of [['m', { width: 390, height: 844 }], ['d', { width: 1440, height: 900 }]]) {
   const { ctx, p, errs } = await mk(vp); const shot = n => p.screenshot({ path: `${OUT}/v5-${tag}-${n}.png`, fullPage: false });

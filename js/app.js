@@ -1,3 +1,4 @@
+import * as PER from './periods.js';
 import * as C from './core.js';
 import * as FE from './feeds.js'; window.EPF = FE;
 import * as D from './data.js';
@@ -22,7 +23,7 @@ async function load() {
     const [ev, pl, k] = await Promise.all([D.scoreboard(lg, date), D.polyEvents(lg).catch(e => (S.polyErr = e.message, [])), D.kalshi(lg)]);
     if (lg !== S.league) return;
     S.events = ev; S.kalshi = k; S.poly = {}; S.kal = {}; ev.forEach(e => { S.poly[e.id] = D.matchPoly(e, pl); S.kal[e.id] = D.matchKalshi(e, k); });
-    await V4.fillOdds(S.events).catch(() => 0); await V4.loadBooks(S).catch(() => 0); S.src = D.scoreboard.meta; S.fetched = new Date(D.scoreboard.meta?.at || Date.now()); S.err = null; S.lastOk = Date.now(); snapshot(); await autoSettle(); if ((await L.gradeOpen(S.events, D.eventFinal, closeFor).catch(() => 0)) && A.user) A.syncNow().catch(() => {});
+    await V4.fillOdds(S.events).catch(() => 0); await V4.loadBooks(S).catch(() => 0); V4.loadPeriods(S).then(() => render()).catch(() => 0); S.src = D.scoreboard.meta; S.fetched = new Date(D.scoreboard.meta?.at || Date.now()); S.err = null; S.lastOk = Date.now(); snapshot(); await autoSettle(); if ((await L.gradeOpen(S.events, D.eventFinal, closeFor).catch(() => 0)) && A.user) A.syncNow().catch(() => {});
   } catch (e) { S.err = e.message; S.errAt = Date.now(); S.failSince ||= Date.now(); }
   if (!S.err) S.failSince = null;
   S.busy = false; V4.alerts(S); render();
@@ -79,7 +80,8 @@ function markets(e) {
   if (rows.length >= 2) out.forEach(m => { const pair = r => m.market === 'ml' ? [r.ml?.away, r.ml?.home] : m.market === 'spread' ? (r.sp?.home?.point === (m.side === 'home' ? m.line : -m.line) ? [r.sp.away.price, r.sp.home.price] : null) : (r.tot?.over?.point === m.line ? [r.tot.over.price, r.tot.under.price] : null);
     const i = m.market === 'total' ? (m.side === 'over' ? 0 : 1) : (m.side === 'away' ? 0 : 1); const ps = rows.map(pair).filter(x => x && x.every(v => v != null)).map(x => C.devig(x, LS.get('devig', 'multiplicative')).probs[i]);
     if (ps.length >= 2) { m.src.push({ name: `Market median (${ps.length} books)`, prob: C.median(ps) }); rows.forEach(r => { const x = pair(r); if (x && x[i] != null) m.quotes.push({ book: r.book, price: x[i] }); }); } });
-  out.forEach(m => { m.best = C.best(m.quotes); m.fair = m.src.reduce((x, s) => x + s.prob, 0) / m.src.length; m.ev = m.best ? C.ev(m.fair, m.best.price) : null; });
+  out.push(...PER.build(e, S.ev?.[e.id], P, LS.get('devig', 'multiplicative')));
+  out.forEach(m => { if (m.section) return; m.best = C.best(m.quotes); m.fair = m.src.reduce((x, s) => x + s.prob, 0) / m.src.length; m.ev = m.best ? C.ev(m.fair, m.best.price) : null; });
   return out;
 }
 const userSrc = k => LS.get('usrc', {})[k] || [];
@@ -347,7 +349,11 @@ async function intel(e, propsFirst) {
   const mk = I.PROP_MARKETS[e.league] || [];
   const showProps = async m => { $('#inP').innerHTML = `<b>Player prop prices</b> <select id="inPM">${mk.map(x => `<option ${x === m ? 'selected' : ''} value="${x}">${x.replace(/^(player|batter|pitcher)_/, '').replace(/_/g, ' ')}</option>`).join('')}</select><div class="muted small">Loading…</div>`; $('#inPM').onchange = ev => showProps(ev.target.value);
     const r = await I.props(e, bk.id, m).catch(x => ({ err: x.message })); if (!$('#inP')) return;
-    $('#inP').lastElementChild.outerHTML = r.rows?.length ? `<div style="overflow-x:auto;max-height:320px"><table><tr><th>Player</th><th>Line</th><th>Best over</th><th>Best under</th><th>Books</th></tr>${r.rows.map(x => `<tr><td>${esc(x.player)}</td><td>${x.line ?? ''}</td><td>${x.bestO ? fa(x.bestO.price) + ' <span class="muted small">' + esc(x.bestO.book) + '</span>' : '—'}</td><td>${x.bestU ? fa(x.bestU.price) + ' <span class="muted small">' + esc(x.bestU.book) + '</span>' : '—'}</td><td>${Math.max(x.over.length, x.under.length)}</td></tr>`).join('')}</table></div><div class="src">The Odds API via EdgePro cache, updated ${age(r.fetched)}. Compare with this player's hit rate on the Props tab.</div>` : `<div class="muted small">${r.err ? 'Prop feed unavailable (' + esc(r.err) + ').' : 'No books have posted this prop yet.'}</div>`; };
+    const pp = await I.polyProps(S.poly[e.id]?.slug).catch(() => ({}));
+    (r.rows || []).forEach(x => { const pm = pp[String(x.player).toLowerCase() + '|' + x.line]; const sd = x.fairO == null ? null : x.fairO >= 0.5 ? 'over' : 'under'; if (!sd) return;
+      const src = [{ name: `Book median no-vig (${x.nPair} book${x.nPair > 1 ? 's' : ''})`, prob: sd === 'over' ? x.fairO : 1 - x.fairO }]; if (pm) src.push({ name: 'Polymarket mid', prob: sd === 'over' ? pm.mid : 1 - pm.mid });
+      const bp = sd === 'over' ? x.bestO : x.bestU; if (!bp) return; x.g = C.gradePick({ cal: L.calibration(), sport: e.league, market: 'prop', side: `${x.player} ${sd} ${x.line}`, price: bp.price, sources: src, gate: V4.gateOk(e) }); x.gSide = sd; x.pm = pm; });
+    $('#inP').lastElementChild.outerHTML = r.rows?.length ? `<div style="overflow-x:auto;max-height:320px"><table><tr><th>Player</th><th>Line</th><th>Best over</th><th>Best under</th><th>Grade</th><th>Books</th></tr>${r.rows.map(x => `<tr><td>${esc(x.player)}</td><td>${x.line ?? ''}</td><td>${x.bestO ? fa(x.bestO.price) + ' <span class="muted small">' + esc(x.bestO.book) + '</span>' : '—'}</td><td>${x.bestU ? fa(x.bestU.price) + ' <span class="muted small">' + esc(x.bestU.book) + '</span>' : '—'}</td><td class="pgr">${x.g ? V4.gradeChip(x.g) + ` <span class="small muted">${x.gSide}${x.pm ? ' · PM ' + Math.round(x.pm.mid * 100) + '¢' : ''}</span>` : '—'}</td><td>${Math.max(x.over.length, x.under.length)}</td></tr>`).join('')}</table></div><div class="src">The Odds API via EdgePro cache, updated ${age(r.fetched)}. Grade = book median no-vig${'${'}Object.keys(pp).length ? ' + liquid Polymarket prop markets (' + Object.keys(pp).length + ')' : ' (no liquid Polymarket prop market for this game, so one source: never Official)'}. Compare with this player's hit rate on the Props tab.</div>` : `<div class="muted small">${r.err ? 'Prop feed unavailable (' + esc(r.err) + ').' : 'No books have posted this prop yet.'}</div>`; };
   if (!bk.id || !mk.length) $('#inP').innerHTML = `<b>Player prop prices</b><div class="muted small">${!mk.length ? 'No prop markets for this league in the free feed.' : 'Needs the game in the multi-book feed first.'}</div>`; else showProps(mk[0]);
   const inj = await I.injuries(e).catch(() => null); if ($('#inI')) { const o = e.odds, nv = o?.ml.home?.close && o?.ml.away?.close ? C.noVig(o.ml.home.close, o.ml.away.close) : null;
     const li = (side) => (inj?.[side] || []).map(x => `<li>${x.key ? '<b>★ </b>' : ''}${esc(x.name)} <span class="muted small">${esc(x.pos || '')} · ${esc(x.status)}${x.detail ? ' · ' + esc(x.detail) : ''} · weight ${(x.imp * 100).toFixed(1)} pts</span></li>`).join('') || '<li class="muted small">None listed</li>';

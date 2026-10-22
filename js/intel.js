@@ -1,3 +1,4 @@
+import * as C from './core.js';
 // Intel: multi-book odds + prop prices (The Odds API via our cached Supabase proxy — key never in the client),
 // ESPN injuries with a transparent injury adjustment, community splits, and bet import (paste / CSV).
 import { parseAm } from './core.js';
@@ -25,9 +26,19 @@ export async function books(e) {
 export async function props(e, oddsId, market) {
   const sp = sportOf(e); const r = await cached(`p${oddsId}${market}`, () => j(`${FN}?kind=props&sport=${sp}&event=${oddsId}&market=${market}`));
   const by = {}; for (const b of r.data?.bookmakers || []) for (const m of b.markets) for (const o of m.outcomes) { const k = o.description + '|' + o.point; const x = by[k] ||= { player: o.description, line: o.point, over: [], under: [] }; (o.name === 'Under' ? x.under : x.over).push({ book: b.title, price: o.price }); }
+  // fair over prob: median of each book's own no-vig pair (books quoting both sides of the same line)
+  for (const x of Object.values(by)) { const ps = x.over.map(o => { const u = x.under.find(v => v.book === o.book); return u ? C.devig([o.price, u.price], 'multiplicative').probs[0] : null; }).filter(v => v != null); x.fairO = ps.length ? C.median(ps) : null; x.nPair = ps.length; }
   const best = a => a.reduce((m, x) => (m && m.price >= x.price ? m : x), null);
   return { fetched: r.fetched, rows: Object.values(by).map(x => ({ ...x, bestO: best(x.over), bestU: best(x.under) })).sort((a, b) => a.player.localeCompare(b.player) || a.line - b.line) };
 }
+/** period + team-total prices for one event (Odds API per-event markets; server caches 3h and enforces a daily credit budget) */
+export async function eventMarkets(e, oddsId) { const sp = sportOf(e); if (!sp || !oddsId) return null;
+  const pr = await cached('ev' + oddsId, () => F.pull('Odds API (periods)', 'ev:' + oddsId, [{ name: 'The Odds API per-event (via EdgePro server)', run: () => j(`${FN}?kind=event&sport=${sp}&event=${oddsId}`).then(r => { if (r.skip || r.error) { const x = new Error(r.error || 'skipped'); x.soft = true; throw x; } return r; }), ok: r => Array.isArray(r?.data?.bookmakers) }], { retries: 0 }));
+  return { books: pr.v.data.bookmakers, fetched: pr.v.fetched || pr.at, note: pr.v.note }; }
+/** Polymarket player-prop markets for a game (liquid ones only: ≥$500 liquidity and ≤6¢ spread) keyed "player|line" → over mid/ask */
+export async function polyProps(slug) { if (!slug) return {}; const ev = (await j(`https://gamma-api.polymarket.com/events?slug=${encodeURIComponent(slug + '-player-props')}`).catch(() => []))[0]; const out = {};
+  for (const m of ev?.markets || []) { if (m.closed || +m.liquidityNum < 500 || !(m.bestAsk > 0 && m.bestBid > 0) || m.bestAsk - m.bestBid > 0.06) continue; const q = String(m.question).match(/^(.+?):\s*(.+?)\s+O\/U\s+([\d.]+)/); if (!q) continue;
+    out[q[1].toLowerCase() + '|' + (+q[3])] = { stat: q[2], mid: (+m.bestBid + +m.bestAsk) / 2, ask: +m.bestAsk, askU: +(1 - m.bestBid).toFixed(3) }; } return out; }
 // ---------- injuries (ESPN game summary: same feed as espn.com injury reports) ----------
 const W = { Out: 1, 'Injured Reserve': 1, Suspension: 1, Doubtful: 0.75, Questionable: 0.3, 'Day-To-Day': 0.3, Probable: 0.05 };
 const IMPACT = { nba: 0.03, wnba: 0.03, ncaab: 0.02, nfl: 0.02, ncaaf: 0.015, nhl: 0.015, mlb: 0.01, soccer: 0.015 };

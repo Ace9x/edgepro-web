@@ -31,7 +31,9 @@ export async function scoreboard(lg, date) {
   const q = `${(L.q || '').replace(/^&/, '')}${dq}`.replace(/^&/, ''), qs = q ? '?' + q : '';
   const src = p => [{ name: 'ESPN site API', run: () => j(`https://site.api.espn.com/apis/site/v2/sports/${p}/scoreboard${qs}`).then(d => d.events) },
     { name: 'ESPN site.web API', run: () => j(`https://site.web.api.espn.com/apis/site/v2/sports/${p}/scoreboard${qs}`).then(d => d.events) },
-    ...(p.startsWith('soccer') ? [] : [{ name: 'ESPN CDN feed', run: () => j(`https://cdn.espn.com/core/${p.split('/')[1]}/scoreboard?xhr=1${q ? '&' + q : ''}`).then(d => d.content?.sbData?.events) }])].map(x => ({ ...x, ok: v => Array.isArray(v) }));
+    // CDN core feed has no NHL or soccer route (404, checked in a real browser); those leagues skip it
+    ...(p.startsWith('soccer') || p === 'hockey/nhl' ? [] : [{ name: 'ESPN CDN feed', run: () => j(`https://cdn.espn.com/core/${p.split('/')[1]}/scoreboard?xhr=1${q ? '&' + q : ''}`).then(d => d.content?.sbData?.events) }]),
+    { name: 'EdgePro relay (ESPN, server-side)', run: () => { const u = new URLSearchParams({ p }); for (const [k, v] of new URLSearchParams(q)) if (['dates', 'groups', 'limit'].includes(k)) u.set(k, v); return j(`https://czjwiudbasqwlwvezmaz.supabase.co/functions/v1/ep-sb?${u}`).then(d => d.events); } }].map(x => ({ ...x, ok: v => Array.isArray(v) }));
   const res = await Promise.allSettled(paths.map(p => F.pull('Scores', `sb:${p}:${dq}`, src(p)).then(r => ({ r, ev: (r.v || []).map(e => parseEvent(e, lg, p)) }))));
   if (res.every(r => r.status === 'rejected')) throw res[0].reason;
   const ok = res.filter(r => r.status === 'fulfilled').map(r => r.value); scoreboard.meta = { source: ok[0]?.r.source, at: Math.min(...ok.map(x => x.r.at)), cached: ok.some(x => x.r.cached) };
@@ -56,6 +58,8 @@ export function matchPoly(ev, list) {
   const pe = list.find(p => endsD(p.slug) && p.title.toLowerCase().includes(hn) && p.title.toLowerCase().includes(an)) || list.find(p => /-\d{4}-\d\d-\d\d$/.test(p.slug) && endsD(p.slug) && p.slug.includes(ev.home.abbr.toLowerCase()) && p.slug.includes(ev.away.abbr.toLowerCase()));
   if (!pe) return null;
   const out = { slug: pe.slug, url: 'https://polymarket.com/event/' + pe.slug, volume: pe.volume, totals: [] };
+  out.slug = pe.slug;
+  out.raw = (pe.markets || []).filter(m => !m.closed && m.sportsMarketType).map(m => ({ t: m.sportsMarketType, q: m.question, g: m.groupItemTitle, line: m.line, outcomes: m.outcomes, prices: m.outcomePrices, bid: +m.bestBid, ask: +m.bestAsk, liq: +m.liquidityNum || 0 }));
   for (const m of pe.markets || []) {
     if (m.closed) continue; let outc, pr; try { outc = JSON.parse(m.outcomes); pr = JSON.parse(m.outcomePrices).map(Number); } catch { continue; }
     const ba = +m.bestAsk, bb = +m.bestBid, ask = i => (i === 0 ? (ba > 0 && ba < 1 ? ba : null) : (bb > 0 && bb < 1 ? +(1 - bb).toFixed(3) : null));

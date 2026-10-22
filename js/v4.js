@@ -447,7 +447,7 @@ export const glossaryCard = () => `<div class="card"><div class="card-h"><b>Glos
 export function syncNudge() { if (A.user || LS.get('nudge_sync', 0) || LS.get('bets', []).length < 3) return '';
   return `<div class="card nudge"><div class="row" style="align-items:center"><div style="flex:1"><b>Keep your ${LS.get('bets', []).length} bets safe</b><div class="small muted">Sign in to sync across devices. Your bets on this device stay and merge.</div></div><button class="btn pri sm" data-t="tools">Sign in</button><button class="icon-btn" data-act="nudgex" aria-label="Dismiss">${ic('x')}</button></div></div>`; }
 /** what's new (returning users only, once per version) */
-export const WHATS = { v: '2026-10-22b', items: ['Stale-line finder on Odds: books paying more than the market’s fair price', 'CLV is now the headline skill score; the leaderboard ranks by it (50 verified picks)', 'Signed share links — anyone can verify a pick against the server', 'Decimal odds option, de-vig method choice, glossary', 'Export JSON/CSV, P/L statement, delete cloud data'] };
+export const WHATS = { v: '2026-10-22c', items: ['1st half, 1st quarter/period, first-5 innings and team totals now graded from live book + Polymarket prices', 'Player props graded from the books’ no-vig median (plus Polymarket where liquid)', 'Stale-line finder on Odds: books paying more than the market’s fair price', 'CLV is now the headline skill score; the leaderboard ranks by it (50 verified picks)', 'Signed share links — anyone can verify a pick against the server', 'Decimal odds option, de-vig method choice, glossary', 'Export JSON/CSV, P/L statement, delete cloud data'] };
 export function whatsNew() { const seen = LS.get('whats', null); if (seen === WHATS.v) return; LS.set('whats', WHATS.v); if (!seen && !LS.get('bets', []).length) return; // brand-new users get onboarding, not a changelog
   X?.modal?.(`<h3>What’s new</h3><ul class="why">${WHATS.items.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="actions"><button class="btn pri" data-act="closemodal">Got it</button></div>`); }
 /** offline chip */
@@ -476,6 +476,10 @@ export async function fillOdds(events) { const miss = events.filter(e => e.state
   return n; }
 
 /** multi-book prices for every pre-game event (one cached Odds API call per sport) — feeds the 2nd source on Desk grades */
+/** period/team-total prices: today's slate only (next 18h), soonest first; the server enforces the daily free-credit budget */
+export async function loadPeriods(S) { S.ev ||= {}; S.evNote = null; const soon = S.events.filter(e => e.state === 'pre' && new Date(e.start) - Date.now() < 18 * 3600e3).sort((a, b) => new Date(a.start) - new Date(b.start));
+  for (const e of soon.slice(0, 25)) { if (S.ev[e.id]) continue; const bk = await X.I.books(e).catch(() => null); if (!bk?.id) continue;
+    const r = await X.I.eventMarkets(e, bk.id).catch(x => ({ err: x.message })); if (r?.err) { S.evNote = r.err; if (/budget/.test(r.err)) break; continue; } S.ev[e.id] = r; } }
 export async function loadBooks(S) { S.books ||= {}; const pre = S.events.filter(e => e.state === 'pre'); for (const e of pre.slice(0, 40)) { if (S.books[e.id]) continue; const bk = await X.I.books(e).catch(() => null); if (bk?.rows) S.books[e.id] = bk.rows; } }
 
 // ================= Desk design pass (desk_design.md) =================
@@ -512,13 +516,15 @@ const tm2 = t => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '
 
 // ---------- Today: best per section, nothing-to-show said plainly ----------
 const SECTIONS = [['ml', 'Moneyline'], ['spread', 'Spread'], ['total', 'Game total']];
-const UNPRICED = ['1st half', '1st quarter / period / inning', 'Team totals', 'Player props'];
+const PSECS = ['1st half', '1st quarter', '1st period', 'First 5 innings', '1st inning', 'Team total'];
 export function todayView() { const S = X.S; if (!S.events.length) return X.head() + states(S, X.D, () => '');
   const pre = S.events.filter(e => e.state === 'pre'); pre.slice(0, 6).forEach(loadGateFor);
   const gs = pre.flatMap(X.markets).map(m => { const g = X.grade(m); return { m, g }; });
-  const bestOf = k => gs.filter(x => x.m.market === k && !fresh(x.m.e).stale && x.g.status !== 'SIT' && ['A', 'B'].includes(x.g.grade)).sort((a, b) => (b.g.official - a.g.official) || (b.g.conf - a.g.conf))[0];
+  const bestOf = k => gs.filter(x => (x.m.section || x.m.market) === k && !fresh(x.m.e).stale && x.g.status !== 'SIT' && ['A', 'B'].includes(x.g.grade)).sort((a, b) => (b.g.official - a.g.official) || (b.g.conf - a.g.conf))[0];
   const secs = SECTIONS.map(([k, n]) => { const b = bestOf(k); return `<section class="sec"><h3>${n}</h3>${b ? pickCard(b.m, b.g) : `<div class="card none"><p class="small muted" style="margin:0">Nothing graded B or better in ${n.toLowerCase()} today. That's a valid result.</p></div>`}</section>`; }).join('');
-  const un = `<div class="card none"><p class="small muted" style="margin:0"><b>${UNPRICED.join(', ')}</b>: no free live price feed covers these, so they aren't graded here. Hit rates and trends for them are in <button class="lnk" data-t="props">Props</button> and <button class="lnk" data-t="trends">Trends</button>.</p></div>`;
+  const have = PSECS.filter(n => gs.some(x => x.m.section === n));
+  const un = have.map(n => { const b = bestOf(n), c = gs.filter(x => x.m.section === n).length; return `<section class="sec"><h3>${n} <span class="small muted">${c} priced</span></h3>${b ? pickCard(b.m, b.g) : `<div class="card none"><p class="small muted" style="margin:0">Nothing graded B or better in ${n.toLowerCase()} today. That's a valid result.</p></div>`}</section>`; }).join('')
+    + `<div class="card none"><p class="small muted" style="margin:0">Period and team-total prices: sportsbooks via The Odds API (today's slate, soonest games first, within a daily free-credit budget) plus liquid Polymarket game markets. ${have.length ? '' : 'None are priced yet for today. '}${S.evNote ? 'Note: ' + esc(S.evNote) + '. ' : ''}Player props are graded in <button class="lnk" data-t="props">Props</button>.</p></div>`;
   const cards = S.events.slice(0, 30).map(e => { const best = gs.filter(x => x.m.e === e).sort((a, b) => (b.g.conf || 0) - (a.g.conf || 0))[0], f = fresh(e), gt = gateS[e.id];
     return `<button class="gcard" data-act="desk" data-id="${e.id}"><span class="gc-t"><b>${esc(e.away.abbr)} @ ${esc(e.home.abbr)}</b><span class="small muted">${e.state === 'pre' ? tm2(e.start) : esc(e.detail)}</span></span>${best ? gradeChip(best.g, { blocked: f.stale ? 'Stale' : null }) : '<span class="small muted">no grade</span>'}<span class="dot ${f.stale ? 'bad' : f.warn ? 'warn' : 'ok'}" title="${f.t ? 'Odds ' + Math.round(f.m) + ' min old' : 'No odds'}" aria-label="${f.stale ? 'stale odds' : 'fresh odds'}"></span>${gt?.tried ? `<span class="small ${gt.ok ? 'mv-up' : 'warn-t'}">${gt.ok ? '✓ injuries' : 'gate open'}</span>` : ''}${spark(e, 'mh', 64, 20)}</button>`; }).join('');
   return X.head() + `<h1 style="margin-top:8px">Today</h1><p class="muted" style="margin-top:0">The best graded pick in each section, from live prices. Research only.</p>${secs}${un}<h3>Games</h3><div class="glist">${cards}</div>`; }

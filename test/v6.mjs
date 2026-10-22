@@ -5,7 +5,7 @@ const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Geck
 let pass = 0, fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); c ? pass++ : fail++; };
 const b = await chromium.launch(); const uptime = {};
 for (const [tag, vp] of [['m', { width: 390, height: 844 }], ['d', { width: 1440, height: 900 }]]) {
-  const ctx = await b.newContext({ viewport: vp, userAgent: UA, extraHTTPHeaders: HDR }); await ctx.addInitScript(() => { localStorage.setItem('ep_consent', '{"v":"2026-10-22"}'); localStorage.setItem('ep_whats', '"2026-10-22b"'); });
+  const ctx = await b.newContext({ viewport: vp, userAgent: UA, extraHTTPHeaders: HDR }); await ctx.addInitScript(() => { localStorage.setItem('ep_consent', '{"v":"2026-10-22"}'); localStorage.setItem('ep_whats', '"2026-10-22c"'); });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); const shot = n => p.screenshot({ path: `${OUT}/v6-${tag}-${n}.png` });
   for (const lg of ['nfl', 'mlb']) {
     await p.goto(BASE); await p.evaluate(l => { localStorage.setItem('ep_league', JSON.stringify(l)); localStorage.setItem('ep_league_set', '1'); }, lg); await p.goto(BASE + '#today'); await p.reload();
@@ -15,8 +15,8 @@ for (const [tag, vp] of [['m', { width: 390, height: 844 }], ['d', { width: 1440
     const stamp = await p.textContent('#stamp'); ok(/^updated \d{1,2}:\d\d [AP]M$/.test(stamp.trim()), `${tag} ${lg}: compact stamp "${stamp.trim()}"`);
     ok(st.Scores?.ok, `${tag} ${lg}: scores live via ${st.Scores?.source}`); ok(!(await p.isVisible('text=unavailable since')), `${tag} ${lg}: no outage shown while a source works`);
     const t = await p.innerText('#view'); ok(/Today/.test(t) && /Moneyline/.test(t) && /Spread/.test(t) && /Game total/.test(t), `${tag} ${lg}: Today shows each section`);
-    const none = (t.match(/Nothing graded B or better in/g) || []).length, picks = await p.locator('.sec .card.pick').count(); ok(none + picks === 3, `${tag} ${lg}: every section has a pick or a plain "nothing" line (${picks} picks, ${none} empty)`);
-    ok(/no free live price feed/.test(t) && !/C\+/.test(t), `${tag} ${lg}: unpriced sections stated plainly, no C+`);
+    const none = (t.match(/Nothing graded B or better in/g) || []).length, picks = await p.locator('.sec .card.pick').count(); const nsec = await p.locator('.sec').count(); ok(none + picks === nsec && nsec >= 3, `${tag} ${lg}: every section has a pick or a plain "nothing" line (${picks} picks, ${none} empty)`);
+    ok(/Period and team-total prices/.test(t) && !/C\+/.test(t), `${tag} ${lg}: unpriced sections stated plainly, no C+`);
     ok(await p.locator('.gcard').count() > 0, `${tag} ${lg}: game list`); if (lg === 'nfl') await shot('today');
     await p.goto(BASE + '#desk'); await p.waitForTimeout(5000); const dc = await p.locator('.card.pick').count(); ok(dc > 0, `${tag} ${lg}: Desk pick cards ${dc}`);
     const chips = await p.$$eval('.card.pick .gchip b', x => x.map(e => e.textContent)); ok(chips.every(c => ['A', 'B', 'C', 'D', '–'].includes(c)), `${tag} ${lg}: A–D chips only (${[...new Set(chips)].join(',')})`);
