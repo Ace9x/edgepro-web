@@ -14,19 +14,20 @@ if (!process.env.ONLY_ACCT) for (const [tag, vp] of [['m', { width: 390, height:
   await p.route(/scoreboard/, async r => { await new Promise(x => setTimeout(x, 1500)); r.continue(); });
   await p.goto(BASE); ok(await p.locator('.skel').count() >= 3, `${tag}: skeleton cards while loading`);
   await p.waitForFunction(() => EP.fetched, null, { timeout: 30000 }); await p.unroute(/scoreboard/);
-  ok(await p.locator('.skel').count() === 0 && await p.locator('#view .state').count() + await p.locator('.card[data-ev]').count() > 0, `${tag}: one state at a time (success or empty)`);
+  ok(await p.locator('.skel').count() === 0 && await p.locator('#view .state').count() + await p.locator('.card[data-ev], .gcard').count() > 0, `${tag}: one state at a time (success or empty)`);
   // nav
-  if (tag === 'm') { ok(await p.locator('#tabs > button').count() === 5, 'm: 5 bottom tabs'); await p.click('#moreBtn'); ok(await p.locator('#more:not(.hide) button[data-t]').count() === 8, 'm: More sheet lists 8 sections'); await shot('more'); await p.click('[data-act=moreclose]'); }
+  if (tag === 'm') { ok(await p.locator('#tabs > button').count() === 5, 'm: 4 tabs + More'); await p.click('#moreBtn'); ok(await p.locator('#more:not(.hide) button[data-t]').count() >= 8, 'm: More sheet lists the other sections'); await shot('more'); await p.click('[data-act=moreclose]'); }
   else ok(await p.isVisible('#side') && !(await p.isVisible('#tabs')), 'd: sidebar on desktop, no bottom tabs');
   // error state: abort scoreboards
   await p.route(/scoreboard/, r => r.abort()); await E(() => { EP.events = []; EP.fetched = null; }); await p.click('[data-day="1"]'); await p.waitForFunction(() => EP.err, null, { timeout: 20000 });
-  const vt = await p.innerText('#view'); ok(/Can't reach live scores/.test(vt) && !/Failed to fetch|Loading/.test(vt) && await p.locator('.skel').count() === 0, `${tag}: single error state, no raw "Failed to fetch"`);
+  const vt = await p.innerText('#view'); ok(/Live scores unavailable since \d/.test(vt) && !/Failed to fetch|Loading/.test(vt) && await p.locator('.skel').count() === 0, `${tag}: single error state, no raw "Failed to fetch"`);
   await shot('error'); await p.unroute(/scoreboard/); await p.click('[data-act=retry]'); await p.waitForFunction(() => EP.fetched && !EP.err, null, { timeout: 30000 }); ok(true, `${tag}: Retry now recovers`);
   await p.click('[data-day="0"]'); await p.waitForFunction(() => EP.fetched && EP.dayOff === 0, null, { timeout: 30000 });
   // choose a league with pre-game odds
   let lg = null; for (const l of ['mlb', 'nfl', 'nhl', 'nba', 'ncaaf']) { await p.click(`[data-lg=${l}]`); await p.waitForFunction(x => EP.league === x && EP.fetched, l, { timeout: 30000 }); if (await E(() => EP.events.some(e => e.odds && e.state === 'pre'))) { lg = l; break; } }
   console.log('INFO league', lg);
   ok(!/Invalid Date|undefined|NaN/.test(await p.innerText('#view')), `${tag}: no Invalid Date / undefined / NaN on scores`);
+  await go(p, 'scores'); await p.waitForTimeout(500);
   // favorites: star → Following section
   const id = await E(() => EP.events.find(e => e.state !== 'post')?.id || EP.events[0].id); await p.click(`[data-act=fav][data-id="${id}"]`); ok(await p.isVisible('h3:has-text("Following")'), `${tag}: starred game floats to Following`); await shot('scores');
   await p.click(`[data-act=fav][data-id="${id}"]`);

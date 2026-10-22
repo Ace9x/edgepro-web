@@ -231,7 +231,7 @@ Object.assign(ctx, { S, views, render: () => render(), load: () => load(), marke
 Object.assign(views, V4.views(ctx)); ctx.importForm = () => importForm(); V4.deepLinks(ctx);
 function render() {
   $('#leagues').innerHTML = Object.entries(D.LEAGUES).map(([k, l]) => `<button class="chip ${k === S.league ? 'on' : ''}" data-lg="${k}">${l.n}</button>`).join('');
-  $('#leagues').classList.toggle('hide', !['scores', 'odds', 'desk', 'props', 'trends'].includes(S.tab));
+  $('#leagues').classList.toggle('hide', !['today', 'scores', 'odds', 'desk', 'props', 'trends'].includes(S.tab));
   V4.nav(S);
   const keep = {}; V.querySelectorAll('input[id]:not([type=file]):not([type=checkbox]),textarea[id]').forEach(el => { if (el.value !== el.defaultValue) keep[el.id] = el.value; }); const foc = document.activeElement?.id;
   V.innerHTML = views[S.tab](); for (const [k, v] of Object.entries(keep)) { const el = document.getElementById(k); if (el && el.value === el.defaultValue) el.value = v; } if (foc && V.contains(document.getElementById(foc))) document.getElementById(foc).focus(); V.querySelectorAll('.card').forEach((c, i) => c.style.setProperty('--i', Math.min(i, 12))); if (S.tab === 'tools') { const pre = V4.calcPre(); if (pre) { if (pre.a) $('#tA').value = pre.a; if (pre.b) $('#tB').value = pre.b; } calc(); } V4.bumpScores(V); if (S.tab === 'record') V4.countUp('record', V);
