@@ -28,3 +28,4 @@ export async function syncNow() { if (!user) return; await init();
   const { error: e2 } = await sb.from('edgepro_user_data').upsert({ user_id: user.id, bets, grades, updated_at: new Date().toISOString() }); if (e2) throw e2;
   localStorage.ep_synced = new Date().toISOString(); emit();
 }
+export const client = () => sb;

@@ -9,7 +9,14 @@ export const all = () => tx('readonly', s => s.getAll());
 export const putAll = recs => tx('readwrite', s => recs.forEach(r => s.put(r)));
 let cache = null; export const cached = () => cache || [];
 let cal = null; export const calibration = () => cal;
-export async function refresh() { cache = await all(); cal = C.calibrate(cache); return cache; }
+// Weekly retune: weights/slope are re-fit at most once every 7 days (or the first time enough data exists) and each
+// change is logged, so grades don't drift day to day and every rule change is visible on the Record page.
+export const calLog = () => { try { return JSON.parse(localStorage.ep_callog || '[]'); } catch { return []; } };
+export async function refresh(force) { cache = await all(); const log = calLog(), last = log[log.length - 1];
+  if (force || !last || Date.now() - new Date(last.at) > 7 * 864e5) { const fresh = C.calibrate(cache); const changed = !last || JSON.stringify([last.cal.k, last.cal.w]) !== JSON.stringify([fresh.k, fresh.w]);
+    log.push({ at: new Date().toISOString(), cal: fresh, changed, note: changed ? (last ? `slope ${last.cal.k}→${fresh.k}; weights ${JSON.stringify(last.cal.w)}→${JSON.stringify(fresh.w)}` : `first fit from ${fresh.n} graded picks`) : `no change (${fresh.n} graded)` });
+    localStorage.ep_callog = JSON.stringify(log.slice(-26)); cal = fresh; } else cal = last.cal;
+  return cache; }
 /** Log shown picks. A pick first shown keeps its first price; the last pre-game price seen becomes the close. */
 export async function logShown(items) {
   if (!cache) await refresh(); const byKey = Object.fromEntries(cache.map(r => [r.key, r])); const out = [];

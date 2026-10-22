@@ -1,5 +1,5 @@
 import { chromium } from 'playwright';
-const b = await chromium.launch(); const ctx = await b.newContext({ viewport:{width:390,height:844}, userAgent:'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36', extraHTTPHeaders:{ 'sec-ch-ua': '"Chromium";v="140", "Google Chrome";v="140"' } });
+const b = await chromium.launch(); const ctx = await b.newContext({ viewport:{width:390,height:844}, userAgent:'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36', extraHTTPHeaders:{ 'sec-ch-ua': '"Chromium";v="140", "Google Chrome";v="140"' } }); await ctx.addInitScript(() => { if (!localStorage.getItem('ep_consent')) localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-22', at: new Date().toISOString() })); }); 
 const p = await ctx.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>m.type()==='error'&&errs.push(m.text()));
 await p.goto('https://ace9x.github.io/edgepro-web/?v='+Date.now()); await p.waitForFunction(()=>EP.fetched,null,{timeout:30000});
 await p.click('[data-lg=nba]'); await p.waitForFunction(()=>EP.league==='nba'&&EP.fetched); await p.click('[data-day="1"]'); await p.waitForTimeout(3000);

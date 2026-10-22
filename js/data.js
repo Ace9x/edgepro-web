@@ -46,19 +46,20 @@ export function matchPoly(ev, list) {
   const out = { slug: pe.slug, url: 'https://polymarket.com/event/' + pe.slug, volume: pe.volume, totals: [] };
   for (const m of pe.markets || []) {
     if (m.closed) continue; let outc, pr; try { outc = JSON.parse(m.outcomes); pr = JSON.parse(m.outcomePrices).map(Number); } catch { continue; }
-    if (m.sportsMarketType === 'moneyline' && !out.ml) { const ih = outc.findIndex(x => hn.includes(x.toLowerCase()) || x.toLowerCase().includes(hn)); if (ih >= 0) out.ml = { home: pr[ih], away: pr[1 - ih] }; }
-    if (m.sportsMarketType === 'totals') { const L = parseFloat((m.question.match(/O\/U ([\d.]+)/) || [])[1]); if (!isNaN(L)) out.totals.push({ line: L, over: pr[outc.indexOf('Over')], under: pr[outc.indexOf('Under')] }); }
+    const ba = +m.bestAsk, bb = +m.bestBid, ask = i => (i === 0 ? (ba > 0 && ba < 1 ? ba : null) : (bb > 0 && bb < 1 ? +(1 - bb).toFixed(3) : null));
+    if (m.sportsMarketType === 'moneyline' && !out.ml) { const ih = outc.findIndex(x => hn.includes(x.toLowerCase()) || x.toLowerCase().includes(hn)); if (ih >= 0) { out.ml = { home: pr[ih], away: pr[1 - ih] }; out.mlAsk = { home: ask(ih), away: ask(1 - ih) }; } }
+    if (m.sportsMarketType === 'totals') { const L = parseFloat((m.question.match(/O\/U ([\d.]+)/) || [])[1]); if (!isNaN(L)) out.totals.push({ line: L, over: pr[outc.indexOf('Over')], under: pr[outc.indexOf('Under')], overAsk: ask(outc.indexOf('Over')), underAsk: ask(outc.indexOf('Under')) }); }
   }
   return out;
 }
 // ---------- Kalshi (public market data; may be blocked by CORS/region — reported honestly) ----------
-const kCache = {}; let kBlocked = null; // Kalshi sends no CORS headers: after the first network failure, skip the other leagues instead of re-erroring
+const kCache = {}; let kBlocked = null, kBlockedAt = 0; // Kalshi sends no CORS headers: after the first network failure, skip the other leagues instead of re-erroring
 export async function kalshi(lg) {
   const s = LEAGUES[lg].kalshi; if (!s) return { ok: false, why: 'no Kalshi game series for this league' };
   if (kCache[s]) return kCache[s];
-  if (kBlocked) return kBlocked;
+  if (kBlocked && Date.now() - kBlockedAt < 5 * 60e3) return kBlocked; kBlocked = null; // retry after a 5-minute cooldown
   try { const d = await j(`https://czjwiudbasqwlwvezmaz.supabase.co/functions/v1/ep-kalshi?series=${s}`); return (kCache[s] = { ok: true, markets: d.markets || [] }); }
-  catch (e) { const r = { ok: false, why: 'Kalshi API not reachable from this browser (' + e.message.split(' ')[0] + ')' }; if (e instanceof TypeError) kBlocked = r; return (kCache[s] = r); }
+  catch (e) { const r = { ok: false, why: 'Kalshi API not reachable from this browser (' + e.message.split(' ')[0] + ')' }; if (e instanceof TypeError) { kBlocked = r; kBlockedAt = Date.now(); } return (kCache[s] = r); }
 }
 export function matchKalshi(ev, k) {
   if (!k?.ok) return null; const f = t => [t.name, t.full].map(x => x.toLowerCase());

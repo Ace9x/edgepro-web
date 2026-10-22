@@ -1,23 +1,22 @@
 // EdgePro core math & desk rules — pure functions, unit-tested (test/unit.test.js)
 export const amToDec = a => (a > 0 ? 1 + a / 100 : 1 + 100 / -a);
 export const amToProb = a => (a == null || isNaN(a) ? null : a > 0 ? 100 / (a + 100) : -a / (-a + 100));
-export const probToAm = p => (p <= 0 || p >= 1 ? null : p >= 0.5 ? Math.round(-100 * p / (1 - p)) : Math.round(100 * (1 - p) / p));
+export const probToAm = p => (p <= 0 || p >= 1 ? null : p > 0.5 ? Math.round(-100 * p / (1 - p)) : Math.round(100 * (1 - p) / p));
 export const parseAm = s => { if (s == null) return null; s = String(s).trim().toUpperCase(); if (s === 'EVEN' || s === 'EV') return 100; const n = parseInt(s.replace(/[^\d+-]/g, ''), 10); return isNaN(n) || Math.abs(n) < 100 ? null : n; };
 export const fmtAm = a => (a == null ? '—' : a > 0 ? '+' + a : String(a));
 export function noVig(a1, a2) { const p1 = amToProb(a1), p2 = amToProb(a2); if (p1 == null || p2 == null) return null; const s = p1 + p2; return { p1: p1 / s, p2: p2 / s, hold: s - 1, fair1: probToAm(p1 / s), fair2: probToAm(p2 / s) }; }
 // EV per $1 staked given true probability p and American price a
 export const ev = (p, a) => p * (amToDec(a) - 1) - (1 - p);
-export const kellyFrac = (p, a) => { const b = amToDec(a) - 1; return Math.max(0, (b * p - (1 - p)) / b); };
 // Arbitrage check across two best opposite prices
-export function arb(a1, a2) { const s = 1 / amToDec(a1) + 1 / amToDec(a2); return { isArb: s < 1, margin: 1 - s, stake1: (1 / amToDec(a1)) / s, stake2: (1 / amToDec(a2)) / s }; }
+export function arb(a1, a2) { const s = 1 / amToDec(a1) + 1 / amToDec(a2); return { isArb: s < 1, margin: 1 - s }; }
 // Best price among quotes [{book, price}]
 export const best = qs => qs.filter(q => q.price != null).sort((x, y) => amToDec(y.price) - amToDec(x.price))[0] || null;
 
 // ---------- Research Desk grading (Fan's desk rules) ----------
 export const JUICE_CAP = -230;
-export const TIERS = [['A', 0.75], ['B', 0.68], ['C+', 0.62], ['C', 0.58], ['D', 0]];
+export const TIERS = [['A', 0.75], ['B', 0.68], ['C', 0.58], ['D', 0]];
 export const tierOf = p => TIERS.find(([, t]) => p >= t)[0];
-const rank = g => ['D', 'C', 'C+', 'B', 'A'].indexOf(g);
+const rank = g => ['D', 'C', 'B', 'A'].indexOf(g);
 /** pick: {sport, market:'ml'|'spread'|'total', side, price, sources:[{name, prob, kind:'outside'|'model'}], wind:{mph, blowingIn:true|false|null}} */
 export function gradePick(pick) {
   const why = []; const outside = (pick.sources || []).filter(s => s.kind !== 'model' && s.prob > 0 && s.prob < 1);
@@ -36,8 +35,9 @@ export function gradePick(pick) {
   const edge = conf - implied; why.push(`Edge vs price: ${(edge * 100).toFixed(1)} pts, EV ${(ev(conf, pick.price) * 100).toFixed(1)}%`);
   const blocks = [];
   if (names.size < 2) blocks.push('Official needs two independent outside numbers');
-  if (rank(grade) < rank('C+')) blocks.push('Official needs C+ or better');
-  if (pick.price < JUICE_CAP) blocks.push(`Juice ${fmtAm(pick.price)} worse than ${JUICE_CAP} cap → SIT`);
+  if (rank(grade) < rank('B')) blocks.push('Official needs B or better (C is a lean)');
+  if (pick.gate === false) blocks.push('Injury / lineup / goalie gate not passed (needs two sources within 60 min)');
+  const sit = pick.price < JUICE_CAP; if (sit) blocks.push(`Juice ${fmtAm(pick.price)} worse than ${JUICE_CAP} cap → SIT`);
   if (edge <= 0) blocks.push('No edge vs the price');
   if (pick.sport === 'mlb' && pick.market === 'total' && /over/i.test(pick.side || '') && pick.wind && pick.wind.mph >= 9) {
     if (pick.wind.blowingIn === true) blocks.push(`Wind gate: ${pick.wind.mph} mph blowing in → Over is a SIT`);
@@ -45,7 +45,7 @@ export function gradePick(pick) {
   }
   blocks.forEach(b => why.push('✗ ' + b));
   const official = blocks.length === 0; why.push(official ? '✓ OFFICIAL' : 'Not official (lean/sit)');
-  return { grade, official, conf, edge, why, status: official ? 'OFFICIAL' : 'LEAN' };
+  return { grade, official, conf, edge, why, status: official ? 'OFFICIAL' : sit ? 'SIT' : 'LEAN' };
 }
 
 // ---------- Bet tracking ----------
@@ -112,3 +112,23 @@ export function summarize(recs, keyFn = () => 'all') {
   return Object.fromEntries(Object.entries(g).map(([k, x]) => [k, { w: x.w, l: x.l, p: x.p, n: x.w + x.l + x.p, hit: x.w + x.l ? +(x.w / (x.w + x.l)).toFixed(3) : null, units: +x.units.toFixed(2),
     avgClv: x.clv.length ? +(x.clv.reduce((a, b) => a + b, 0) / x.clv.length).toFixed(2) : null, beatClose: x.clv.length ? +(x.clv.filter(v => v > 0).length / x.clv.length).toFixed(3) : null, expHit: x.conf.length ? +(x.conf.reduce((a, b) => a + b, 0) / x.conf.length).toFixed(3) : null }]));
 }
+
+// ---------- de-vig methods (pure math, ported from the open-source oddsmith / devigger approaches; no staking code) ----------
+// Each takes implied probabilities of a complete market (2+ outcomes, with vig) and returns fair probabilities summing to 1.
+const sum = a => a.reduce((x, y) => x + y, 0);
+export const DEVIG = {
+  multiplicative: ps => { const s = sum(ps); return ps.map(p => p / s); },
+  additive: ps => { const k = (sum(ps) - 1) / ps.length; return ps.map(p => Math.max(1e-6, p - k)); },
+  /** power: find k with sum(p^k)=1 (bisection) — pulls more vig out of longshots */
+  power: ps => { let lo = 1, hi = 10; for (let i = 0; i < 80; i++) { const k = (lo + hi) / 2; sum(ps.map(p => p ** k)) > 1 ? (lo = k) : (hi = k); } const k = (lo + hi) / 2; return ps.map(p => p ** k); },
+  /** Shin (1993): models insider share z; solve z by bisection so fair probs sum to 1 */
+  shin: ps => { const S = sum(ps); const f = z => ps.map(p => (Math.sqrt(z * z + 4 * (1 - z) * p * p / S) - z) / (2 * (1 - z)));
+    let lo = 0, hi = 0.4; for (let i = 0; i < 80; i++) { const z = (lo + hi) / 2; sum(f(z)) > 1 ? (lo = z) : (hi = z); } return f((lo + hi) / 2); },
+};
+export const DEVIG_NAMES = { multiplicative: 'Multiplicative (proportional)', additive: 'Additive (equal margin)', power: 'Power', shin: 'Shin' };
+/** de-vig American prices with a named method; returns {probs, fair (American), hold} */
+export function devig(prices, method = 'multiplicative') { const ps = prices.map(amToProb); if (ps.some(p => p == null)) return null; const f = (DEVIG[method] || DEVIG.multiplicative)(ps);
+  return { probs: f, fair: f.map(probToAm), hold: sum(ps) - 1 }; }
+export const median = a => { const s = a.filter(x => x != null && !isNaN(x)).sort((x, y) => x - y); if (!s.length) return null; const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+/** CLV as percent: price / close (decimal) − 1. Positive = you beat the closing price. */
+export const clvPct = (betAm, closeAm) => (betAm == null || closeAm == null ? null : +((amToDec(betAm) / amToDec(closeAm) - 1) * 100).toFixed(2));
