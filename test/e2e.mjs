@@ -1,12 +1,12 @@
 // Playwright e2e against the live site. BASE=https://ace9x.github.io/edgepro-web/ npm run e2e
-import { chromium } from 'playwright'; import fs from 'fs';
-const BASE = process.env.BASE || 'https://ace9x.github.io/edgepro-web/', OUT = '/workspace/edgepro-shots'; fs.mkdirSync(OUT, { recursive: true });
+import { chromium } from 'playwright'; import * as C_ from '../js/core.js'; import fs from 'fs';
+const BASE = process.env.BASE || 'https://ace9x.github.io/edgepro-web/', OUT = process.env.OUT || '/workspace/edgepro-shots'; fs.mkdirSync(OUT, { recursive: true });
 // ESPN's CDN rejects the 'HeadlessChrome' client hint, so the test browser presents normal Chrome hints (real users are unaffected).
 const HDR = { 'sec-ch-ua': '"Chromium";v="140", "Google Chrome";v="140"' };
 const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 412, height: 900 }, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36', permissions: ['clipboard-read', 'clipboard-write'], extraHTTPHeaders: HDR });
 const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
 let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL ') + m); };
-const shot = n => p.screenshot({ path: `${OUT}/${n}.png` }); const E = f => p.evaluate(f);
+const shot = n => p.screenshot({ path: `${OUT}/${n}.png` }); const E = (f, a) => p.evaluate(f, a);
 const loadLg = async lg => { await p.click(`[data-lg=${lg}]`); await p.waitForFunction(l => EP.league === l && EP.fetched, lg, { timeout: 30000 }); };
 await p.goto(BASE); await p.waitForFunction(() => EP.fetched, null, { timeout: 30000 });
 ok(await p.isVisible('text=1-800-GAMBLER') && await p.isVisible('text=21+'), 'responsible-gambling notice + 21+ visible');
@@ -27,7 +27,7 @@ await p.click('[data-t=desk]'); await p.waitForTimeout(1500); const g = await p.
 await p.locator('details').first().click(); ok(await p.locator('ul.why li').count() >= 3, 'reasoning stack shown'); await shot('03-desk');
 await p.click('[data-t=tools]'); await p.fill('#tA', '-150'); await p.fill('#tB', '+130'); await p.fill('#tX', '+140'); ok(/No-vig fair: 58\.0%/.test(await p.textContent('#tOut')), 'no-vig calc: -150/+130 → 58.0% fair'); await shot('04-tools');
 // bet tracker
-await p.click('[data-t=scores]'); await p.locator('[data-act=track]').first().click(); await p.click('#bSave'); await p.waitForTimeout(500);
+await p.click('[data-t=scores]'); await p.locator('[data-act=track]').first().click(); if (!C_.parseAm(await p.inputValue('#bP'))) await p.fill('#bP', '-110'); await p.click('#bSave'); await p.waitForTimeout(500);
 await p.click('[data-t=bets]'); ok(await p.locator('text=open').count() > 0 || await p.locator('td b.mv-up, td b.mv-dn').count() > 0, 'bet tracked in ledger');
 // auto-settle a finished game from yesterday
 await p.click('[data-t=scores]'); await p.click('[data-day="-1"]'); await p.waitForFunction(() => EP.fetched && EP.dayOff === -1, null, { timeout: 20000 });
