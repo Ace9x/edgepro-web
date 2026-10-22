@@ -29,3 +29,8 @@ export async function feed() { if (!A.user) return []; const c = await sb(); con
   const ids = f.map(x => x.followee); const [picks, profs] = await Promise.all([T(c.from('edgepro_picks').select('*').in('user_id', ids).order('created_at', { ascending: false }).limit(40)), T(c.from('edgepro_profiles').select('user_id,username,avatar_url').in('user_id', ids))]);
   const by = Object.fromEntries(profs.map(p => [p.user_id, p])); return picks.map(p => ({ ...p, who: by[p.user_id] })); }
 export const settleNow = () => fetch(FN, { method: 'POST' }).then(r => r.json()).catch(() => null);
+// ---------- server-signed share links ----------
+const SHARE = 'https://czjwiudbasqwlwvezmaz.supabase.co/functions/v1/ep-share';
+export async function signShare(pickId) { const c = await sb(); const { data } = await c.auth.getSession(); const r = await fetch(SHARE, { method: 'POST', headers: { Authorization: 'Bearer ' + data.session?.access_token, 'Content-Type': 'application/json' }, body: JSON.stringify({ pick_id: pickId }) }).then(x => x.json());
+  if (!r.token) throw new Error(r.error || 'could not sign'); return location.origin + location.pathname + '#s/' + r.token; }
+export const verifyShare = t => fetch(SHARE + '?t=' + encodeURIComponent(t)).then(x => x.json());

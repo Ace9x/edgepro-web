@@ -6,7 +6,7 @@ const HDR = { 'sec-ch-ua': '"Chromium";v="140", "Google Chrome";v="140"' }, UA =
 let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL ') + m); };
 const go = (pg, t) => pg.evaluate(t => { const b = [...document.querySelectorAll('[data-t="' + t + '"]')].find(x => x.offsetParent); if (b) b.click(); else { document.querySelector('#moreBtn').click(); document.querySelector('#more [data-t="' + t + '"]').click(); } }, t);
 const b = await chromium.launch();
-const mk = async vp => { const ctx = await b.newContext({ viewport: vp, userAgent: UA, extraHTTPHeaders: HDR }); await ctx.addInitScript(() => { if (!localStorage.getItem('ep_consent')) localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-22', at: new Date().toISOString() })); });  const p = await ctx.newPage(); const errs = [];
+const mk = async vp => { const ctx = await b.newContext({ viewport: vp, userAgent: UA, extraHTTPHeaders: HDR }); await ctx.addInitScript(() => { if (!localStorage.getItem('ep_consent')) localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-22', at: new Date().toISOString() })); localStorage.setItem('ep_whats', '"2026-10-22b"'); });  const p = await ctx.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/kalshi|Failed to load resource/i.test(m.text())) errs.push(m.text()); }); return { ctx, p, errs }; };
 if (!process.env.ONLY_ACCT) for (const [tag, vp] of [['m', { width: 390, height: 844 }], ['d', { width: 1440, height: 900 }]]) {
   const { ctx, p, errs } = await mk(vp); const E = (f, a) => p.evaluate(f, a); const shot = n => p.screenshot({ path: `${OUT}/after-${tag}-${n}.png` });
@@ -68,7 +68,7 @@ if (!process.env.ONLY_ACCT) for (const [tag, vp] of [['m', { width: 390, height:
   // every button in every view: click, no errors
   for (const v of ['scores', 'odds', 'desk', 'props', 'trends', 'ask', 'ledger', 'record', 'community', 'tools']) { await go(p, v); await p.waitForTimeout(600);
     const n = await p.locator('#view button:visible').count(); let clicked = 0;
-    for (let i = 0; i < Math.min(n, 25); i++) { const bt = p.locator('#view button:visible').nth(i); const a = await bt.getAttribute('data-act').catch(() => null); if (['lock', 'del', 'gatecheck', 'addsrc', 'csv', 'pcard', 'signout'].includes(a)) continue; p.once('dialog', d => d.dismiss().catch(() => {}));
+    for (let i = 0; i < Math.min(n, 25); i++) { const bt = p.locator('#view button:visible').nth(i); const a = await bt.getAttribute('data-act').catch(() => null); if (['lock', 'del', 'gatecheck', 'addsrc', 'csv', 'pcard', 'signout', 'exjson', 'excsv', 'plst', 'delcloud', 'psign'].includes(a)) continue; p.once('dialog', d => d.dismiss().catch(() => {}));
       await bt.click({ timeout: 2000 }).then(() => clicked++).catch(() => {}); await p.waitForTimeout(150); await p.evaluate(() => document.querySelector('#modal')?.classList.add('hide')); if (await E(() => EP.tab) !== v) await go(p, v); }
     console.log(`INFO ${tag} ${v}: clicked ${clicked}/${n} buttons`); }
   ok(errs.length === 0, `${tag}: no console/page errors ${errs.slice(0, 3).join(' | ')}`); await ctx.close();
@@ -113,7 +113,7 @@ if (PW) {
   await p.goto(BASE); await p.waitForSelector("#cAge"); ok(await p.isDisabled('#cGo'), 'consent: continue disabled until both boxes');
   await p.keyboard.press('Escape'); ok(await p.isVisible('#cAge'), 'consent: Esc does not dismiss');
   await p.check('#cAge'); ok(await p.isDisabled('#cGo'), 'consent: one box not enough'); await p.check('#cTos'); await p.click('#cGo');
-  const c = await p.evaluate(() => JSON.parse(localStorage.getItem('ep_consent'))); ok(c?.v === '2026-10-22' && c.at, 'consent: version + timestamp stored');
+  const c = await p.evaluate(() => JSON.parse(localStorage.getItem('ep_consent'))); ok(c?.v === '2026-10-22' && c.at, 'consent: version + timestamp stored'); await p.evaluate(() => localStorage.setItem('ep_whats', '"2026-10-22b"'));
   await p.reload(); await p.waitForTimeout(800); ok(!(await p.isVisible('#cAge').catch(() => false)), 'consent: not asked again');
   await p.evaluate(() => localStorage.setItem('ep_bets', JSON.stringify([{ id: 'x1', game: 'A @ B', label: 'A ML', price: -110, stake: 1, start: '2026-10-01T20:00:00Z', result: 'win', profit: 0.91, placed: '2026-10-01T12:00:00Z' }])));
   await p.goto(BASE + "#tools"); await p.waitForTimeout(800);

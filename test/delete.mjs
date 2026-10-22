@@ -1,0 +1,22 @@
+// End-to-end: delete-my-EdgePro-data on a throwaway account. EMAIL=... PW_FILE=... node test/delete.mjs
+import { chromium } from 'playwright'; import fs from 'fs';
+const BASE = process.env.BASE || 'https://ace9x.github.io/edgepro-web/', EMAIL = process.env.EMAIL, PW = fs.readFileSync(process.env.PW_FILE, 'utf8').trim();
+let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
+const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36' });
+await ctx.addInitScript(() => localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-22', at: new Date().toISOString() })));
+const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
+await p.goto(BASE + '#tools'); await p.waitForSelector('#aE'); await p.fill('#aE', EMAIL); await p.fill('#aP', PW); await p.click('[data-act=ein]'); await p.waitForSelector('text=Signed in as', { timeout: 20000 }); ok(true, 'signed in');
+const seed = await p.evaluate(async () => { const A = await import('./js/account.js'); await A.init(); const c = A.client(); const uid = (await c.auth.getUser()).data.user.id;
+  const r1 = await c.from('edgepro_profiles').insert({ user_id: uid, username: 'ep_del_tmp', display_name: 'Delete test', is_public: true });
+  const r2 = await c.from('edgepro_picks').insert({ user_id: uid, pick_key: 'del-test', event_id: '0', path: 'baseball/mlb', league: 'mlb', market: 'ml', side: 'home', label: 'TEST ML', game: 'X @ Y', price: -110, game_start: new Date(Date.now() + 864e5).toISOString() });
+  const r3 = await c.storage.from('ep-avatars').upload(uid + '/a.png', new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' }), { upsert: true });
+  const r4 = await c.from('edgepro_user_data').upsert({ user_id: uid, bets: [], grades: [] }).then(x => x, e => ({ error: e }));
+  const r5 = await c.from('edgepro_follows').insert({ follower: uid, followee: 'af32b153-21ee-4397-803c-3f90b81ad775' });
+  return { uid, e: [r1.error?.message, r2.error?.message, r3.error?.message, r4.error?.message, r5.error?.message] }; });
+console.log('INFO seed', JSON.stringify(seed)); ok(seed.e.every(x => !x), 'seeded profile, pick, avatar, synced data, follow');
+await p.goto(BASE + '#tools'); await p.waitForTimeout(1000); await p.click('summary:has-text("Delete cloud data")');
+p.once('dialog', d => d.accept()); await p.click('[data-act=delcloud][data-scope=edgepro]'); await p.waitForSelector('text=EdgePro cloud data deleted', { timeout: 20000 }).catch(() => {});
+const left = await p.evaluate(async uid => { const A = await import('./js/account.js'); const c = A.client(); const n = async t => (await c.from(t).select('*', { count: 'exact', head: true }).eq('user_id', uid)).count;
+  return { prof: await n('edgepro_profiles'), picks: await n('edgepro_picks'), data: (await c.from('edgepro_user_data').select('user_id').eq('user_id', uid)).data?.length, fol: (await c.from('edgepro_follows').select('*').eq('follower', uid)).data?.length, files: (await c.storage.from('ep-avatars').list(uid)).data?.length, still: !!(await c.auth.getUser()).data.user }; }, seed.uid);
+console.log('INFO after', JSON.stringify(left)); ok(left.prof === 0 && left.picks === 0 && !left.files && !left.data && !left.fol, 'EdgePro cloud data gone'); ok(left.still, 'sign-in kept (EdgePro-only scope)');
+ok(!errs.length, 'no page errors ' + errs.join('|')); fs.writeFileSync('/tmp/del_uid', seed.uid); await b.close(); process.exit(fail ? 1 : 0);

@@ -3,7 +3,9 @@ export const amToDec = a => (a > 0 ? 1 + a / 100 : 1 + 100 / -a);
 export const amToProb = a => (a == null || isNaN(a) ? null : a > 0 ? 100 / (a + 100) : -a / (-a + 100));
 export const probToAm = p => (p <= 0 || p >= 1 ? null : p > 0.5 ? Math.round(-100 * p / (1 - p)) : Math.round(100 * (1 - p) / p));
 export const parseAm = s => { if (s == null) return null; s = String(s).trim().toUpperCase(); if (s === 'EVEN' || s === 'EV') return 100; const n = parseInt(s.replace(/[^\d+-]/g, ''), 10); return isNaN(n) || Math.abs(n) < 100 ? null : n; };
-export const fmtAm = a => (a == null ? '—' : a > 0 ? '+' + a : String(a));
+/** display-only odds format (American default, Decimal by user choice in Tools); inputs stay American */
+export const oddsFmt = () => { try { return localStorage.getItem('ep_ofmt') === '"dec"' ? 'dec' : 'am'; } catch { return 'am'; } };
+export const fmtAm = a => (a == null ? '—' : oddsFmt() === 'dec' ? amToDec(a).toFixed(2) : a > 0 ? '+' + a : String(a));
 export function noVig(a1, a2) { const p1 = amToProb(a1), p2 = amToProb(a2); if (p1 == null || p2 == null) return null; const s = p1 + p2; return { p1: p1 / s, p2: p2 / s, hold: s - 1, fair1: probToAm(p1 / s), fair2: probToAm(p2 / s) }; }
 // EV per $1 staked given true probability p and American price a
 export const ev = (p, a) => p * (amToDec(a) - 1) - (1 - p);

@@ -167,3 +167,21 @@ main{max-width:1200px;padding:0 0 48px}
 .stat.hero b{font-size:32px;line-height:40px;color:var(--accent,#5EEAD4)}
 .hero-clv .stat-row{margin-top:8px}
 #stale td.n{white-space:nowrap}
+/* growth + design batch */
+.gprog{height:3px;margin:-16px -16px 12px;background:var(--line,#232830);border-radius:12px 12px 0 0;overflow:hidden}
+.gprog i{display:block;height:100%;background:#5EEAD4;transition:width .6s ease}
+.sc.bump{animation:bump .3s ease-out}@keyframes bump{40%{transform:scale(1.15)}100%{transform:none}}
+.edgebar{display:inline-block;width:40px;height:4px;border-radius:2px;background:#232830;vertical-align:middle;margin-right:4px;overflow:hidden}
+.edgebar i{display:block;height:100%;background:#5EEAD4}.edgebar.neg i{background:#5B6573}
+.legend summary{cursor:pointer;font-weight:500;min-height:44px;display:flex;align-items:center}
+.meter{margin-top:12px}.meter .bar{display:block;height:6px;background:#232830;border-radius:3px;margin-top:4px;overflow:hidden}.meter .bar i{display:block;height:100%;background:#5EEAD4}
+abbr.gl{text-decoration:underline dotted;text-underline-offset:3px;cursor:help}
+.gloss dt{font-weight:600;margin-top:8px}.gloss dd{margin:0}
+.seg{display:inline-flex;background:#141820;border:1px solid var(--line,#232830);border-radius:10px;padding:2px}
+.seg button{min-height:40px;padding:0 16px;border:0;border-radius:8px;background:transparent;color:var(--text-2,#A3ACB8);font:inherit;font-weight:500;cursor:pointer;transition:background .18s,color .18s}
+.seg button.on{background:#1E2630;color:#5EEAD4}
+.netchip{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:60;background:#2A1F12;color:#FBBF24;border:1px solid #4A3518;border-radius:999px;padding:6px 12px;font-size:13px;display:flex;gap:6px;align-items:center}
+.icon-btn.copied{color:#5EEAD4}
+.nudge{border-color:color-mix(in srgb,#5EEAD4 35%,transparent)}
+@media (hover:hover){.card[data-ev]:hover{border-color:rgba(94,234,212,.35);transform:translateY(-1px);transition:border-color .18s,transform .18s}}
+@media (prefers-reduced-motion:reduce){.sc.bump{animation:none}.card[data-ev]:hover{transform:none}}
