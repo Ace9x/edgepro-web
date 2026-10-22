@@ -27,16 +27,21 @@ function snapshot() {
   for (const id in h) if (now - h[id][h[id].length - 1].t > 14 * 864e5) delete h[id];
   LS.set('hist', h);
 }
-async function autoSettle() {
-  const bets = LS.get('bets', []); let ch = 0;
+// Serialized: the 60s refresh and a Save can both run autoSettle; without a lock the slower run wrote back a stale
+// bet list and erased a just-saved settlement (the e2e saw "loss" then "open"). Each pass re-reads storage and merges by id.
+let settling = Promise.resolve();
+function autoSettle() { settling = settling.then(settlePass, settlePass); return settling; }
+async function settlePass() {
+  const bets = LS.get('bets', []); const upd = {};
   for (const b of bets) {
-    if (b.result) continue; let fin = null; const ev = S.events.find(e => e.id === b.eventId);
+    if (b.result) continue; let fin = null; const ev = S.events.find(e => e.id === b.eventId); const u = {};
     if (ev && ev.completed) fin = { home: ev.home.score, away: ev.away.score, completed: true };
     else if (!ev && Date.now() - new Date(b.start) > 3 * 3600e3) fin = await D.eventFinal(b.path, b.eventId).catch(() => null);
-    if (ev && b.closePrice == null && ev.state !== 'pre') { const cp = closeFor(ev, b); if (cp != null) { b.closePrice = cp; b.clv = C.clv(b.price, cp); ch++; } }
-    if (fin?.completed) { const r = C.settle(b, fin); if (r) { Object.assign(b, r, { final: `${fin.away}-${fin.home}`, settledAt: new Date().toISOString(), auto: true }); ch++; } }
+    if (ev && b.closePrice == null && ev.state !== 'pre') { const cp = closeFor(ev, b); if (cp != null) Object.assign(u, { closePrice: cp, clv: C.clv(b.price, cp) }); }
+    if (fin?.completed) { const r = C.settle(b, fin); if (r) Object.assign(u, r, { final: `${fin.away}-${fin.home}`, settledAt: new Date().toISOString(), auto: true }); }
+    if (Object.keys(u).length) upd[b.id] = u;
   }
-  if (ch) LS.set('bets', bets);
+  if (Object.keys(upd).length) { const cur = LS.get('bets', []); cur.forEach(b => { if (upd[b.id] && !b.result) Object.assign(b, upd[b.id]); }); LS.set('bets', cur); }
 }
 function closeFor(ev, b) { const o = ev.odds; if (!o) return null; if (b.market === 'ml') return o.ml[b.side]?.close; if (b.market === 'spread') return o.spread[b.side]?.line == b.line ? o.spread[b.side]?.close : null; if (b.market === 'total') return o.total.line == b.line ? o.total[b.side]?.close : null; }
 
