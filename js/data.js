@@ -57,7 +57,7 @@ export async function kalshi(lg) {
   const s = LEAGUES[lg].kalshi; if (!s) return { ok: false, why: 'no Kalshi game series for this league' };
   if (kCache[s]) return kCache[s];
   if (kBlocked) return kBlocked;
-  try { const d = await j(`https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=${s}&status=open&limit=1000`); return (kCache[s] = { ok: true, markets: d.markets || [] }); }
+  try { const d = await j(`https://czjwiudbasqwlwvezmaz.supabase.co/functions/v1/ep-kalshi?series=${s}`); return (kCache[s] = { ok: true, markets: d.markets || [] }); }
   catch (e) { const r = { ok: false, why: 'Kalshi API not reachable from this browser (' + e.message.split(' ')[0] + ')' }; if (e instanceof TypeError) kBlocked = r; return (kCache[s] = r); }
 }
 export function matchKalshi(ev, k) {
