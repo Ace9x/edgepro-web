@@ -26,6 +26,7 @@ for (const [tag, vp] of [['m', { width: 390, height: 844 }], ['d', { width: 1440
   ok(/Period and team-total prices/.test(t) && !/no free live price feed/.test(t), `${tag}: sources stated, old "no feed" line gone`);
   const per = await p.$$eval('.sec', ss => ss.filter(s => /1st|Team total|First 5/.test(s.querySelector('h3').textContent)).map(s => ({ h: s.querySelector('h3').textContent, pick: !!s.querySelector('.card.pick'), none: /Nothing graded/.test(s.textContent) })));
   ok(per.length && per.every(x => x.pick || x.none), `${tag}: each period section shows a graded card or a plain "nothing" line`);
+  await p.waitForFunction(() => EP.ev && Object.keys(EP.ev).length, null, { timeout: 30000 }).catch(() => {});
   const ev = await p.evaluate(() => { const e = EP.events.find(x => EP.ev?.[x.id]); return e ? { books: EP.ev[e.id].books.length, at: EP.ev[e.id].fetched } : null; });
   ok(ev && ev.books > 0 && ev.at, `${tag}: Odds API per-event prices cached server-side (${ev?.books} books, fetched ${ev?.at})`);
   ok(!/C\+/.test(t), `${tag}: no C+`); ok(errs.length === 0, `${tag}: no page errors ${errs.join('; ')}`); await p.screenshot({ path: `${OUT}/v7-${tag}-today-periods.png`, fullPage: tag === 'd' }); await ctx.close(); }

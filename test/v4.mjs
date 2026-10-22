@@ -13,15 +13,15 @@ if (!process.env.ONLY_ACCT) for (const [tag, vp] of [['m', { width: 390, height:
   // skeleton then success (delay ESPN)
   await p.route(/scoreboard/, async r => { await new Promise(x => setTimeout(x, 1500)); r.continue(); });
   await p.goto(BASE); ok(await p.locator('.skel').count() >= 3, `${tag}: skeleton cards while loading`);
-  await p.waitForFunction(() => EP.fetched, null, { timeout: 30000 }); await p.unroute(/scoreboard/);
+  await p.waitForFunction(() => EP.fetched, null, { timeout: 30000 }); await p.unrouteAll();
   ok(await p.locator('.skel').count() === 0 && await p.locator('#view .state').count() + await p.locator('.card[data-ev], .gcard').count() > 0, `${tag}: one state at a time (success or empty)`);
   // nav
   if (tag === 'm') { ok(await p.locator('#tabs > button').count() === 5, 'm: 4 tabs + More'); await p.click('#moreBtn'); ok(await p.locator('#more:not(.hide) button[data-t]').count() >= 8, 'm: More sheet lists the other sections'); await shot('more'); await p.click('[data-act=moreclose]'); }
   else ok(await p.isVisible('#side') && !(await p.isVisible('#tabs')), 'd: sidebar on desktop, no bottom tabs');
   // error state: abort scoreboards
-  await p.route(/scoreboard/, r => r.abort()); await E(() => { EP.events = []; EP.fetched = null; }); await p.click('[data-day="1"]'); await p.waitForFunction(() => EP.err, null, { timeout: 20000 });
+  await p.route(/scoreboard|functions\/v1\/ep-sb/, r => r.abort()); await E(() => { EP.events = []; EP.fetched = null; }); await p.click('[data-day="1"]'); await p.waitForFunction(() => EP.err, null, { timeout: 20000 });
   const vt = await p.innerText('#view'); ok(/Live scores unavailable since \d/.test(vt) && !/Failed to fetch|Loading/.test(vt) && await p.locator('.skel').count() === 0, `${tag}: single error state, no raw "Failed to fetch"`);
-  await shot('error'); await p.unroute(/scoreboard/); await p.click('[data-act=retry]'); await p.waitForFunction(() => EP.fetched && !EP.err, null, { timeout: 30000 }); ok(true, `${tag}: Retry now recovers`);
+  await shot('error'); await p.unrouteAll(); await p.click('[data-act=retry]'); await p.waitForFunction(() => EP.fetched && !EP.err, null, { timeout: 30000 }); ok(true, `${tag}: Retry now recovers`);
   await p.click('[data-day="0"]'); await p.waitForFunction(() => EP.fetched && EP.dayOff === 0, null, { timeout: 30000 });
   // choose a league with pre-game odds
   let lg = null; for (const l of ['mlb', 'nfl', 'nhl', 'nba', 'ncaaf']) { await p.click(`[data-lg=${l}]`); await p.waitForFunction(x => EP.league === x && EP.fetched, l, { timeout: 30000 }); if (await E(() => EP.events.some(e => e.odds && e.state === 'pre'))) { lg = l; break; } }
