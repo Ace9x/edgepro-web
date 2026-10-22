@@ -29,7 +29,6 @@ export function nav(S) {
   const tabs = [...document.querySelectorAll('#tabs > button')], i = Math.max(0, MAIN.includes(S.tab) ? MAIN.indexOf(S.tab) : 4), b = tabs[i], ind = $('.tab-ind');
   if (b && ind) requestAnimationFrame(() => (ind.style.transform = `translateX(${b.offsetLeft + b.offsetWidth / 2 - 12}px)`));
   const me = $('#meBtn'); if (me) me.innerHTML = prof?.avatar_url ? `<img src="${esc(prof.avatar_url)}" alt="">` : ic('user');
-  if (LS.get('rgx', 0)) $('#rg')?.classList.add('hide');
   queueMicrotask(flash);
   document.title = ({ scores: 'Scores', odds: 'Odds & +EV', desk: 'Research Desk', props: 'Props', trends: 'Trends', ask: 'Ask', bets: 'My bets', ledger: 'Ledger', record: 'Record', community: 'People', tools: 'Tools', limits: 'Limits' }[S.tab] || 'EdgePro') + ' · EdgePro';
 }
@@ -44,7 +43,7 @@ export const empty = (icon, title, text, actions = '') => `<div class="state fad
 export const skel = (n = 4, cls = '') => Array.from({ length: n }, () => `<div class="skel ${cls}" aria-hidden="true"></div>`).join('') + '<span class="sr-only" role="status" style="position:absolute;left:-9999px">Loading</span>';
 export function states(S, D, ok) {
   if (S.err && !S.events.length) { const left = Math.max(0, 60 - Math.round((Date.now() - (S.errAt || Date.now())) / 1000));
-    return `<div class="card state err fade-in">${ic('wifi-off')}<b>Can't reach live scores</b><p>ESPN didn't answer${S.lastOk ? ` (last worked ${fmtD(S.lastOk, { hour: 'numeric', minute: '2-digit' })})` : ''}. Trying again automatically.</p>
+    return `<div class="card state err fade-in">${ic('wifi-off')}<b>Live scores unavailable since ${fmtD(S.failSince || S.errAt || Date.now(), { hour: 'numeric', minute: '2-digit' })}</b><p>All three ESPN feeds failed and there's no earlier pull saved on this device. Retrying automatically — nothing is shown until real data arrives.</p>
       <div class="row" style="align-items:center;justify-content:center"><svg class="ring" viewBox="0 0 40 40" aria-hidden="true"><circle class="bg" cx="20" cy="20" r="18"/><circle class="fg" cx="20" cy="20" r="18" style="animation-duration:${left}s"/></svg><span class="small muted num" id="retryIn">${left}s</span><button class="btn ghost" data-act="retry">${ic('refresh')} Retry now</button></div></div>`; }
   if (!S.fetched) return skel(4);
   if (!S.events.length) return `<div class="card">${empty('scores', `No ${D.LEAGUES[S.league].n} games ${['yesterday', 'today', 'tomorrow', 'in 2 days'][S.dayOff + 1]}`, 'Try another day or another sport.', S.dayOff < 2 ? `<button class="btn pri" data-day="${S.dayOff + 1}">See ${S.dayOff === 0 ? 'tomorrow' : 'next day'}</button>` : '')}</div>`;
@@ -162,7 +161,7 @@ async function loadTrends(id) { const e = X.S.events.find(x => x.id === id); if 
 
 // ---------- Desk additions: same-grade warning, best per section, Poly vs book, juice gate, injury gate ----------
 const gateS = {};
-function deskExtras() { const S = X.S; const ms = S.events.filter(e => e.state === 'pre').flatMap(X.markets).filter(m => m.market !== 'spread'); if (!ms.length) return '';
+function deskExtras() { const S = X.S; const ms = S.events.filter(e => e.state === 'pre').flatMap(X.markets); if (!ms.length) return '';
   const gs = ms.map(m => ({ m, g: X.grade(m) })); const warn = Lg.sameGrade(gs.map(x => x.g.grade)) ? `<div class="warnbox">${ic('warn')} Every row on this slate graded <b>${gs[0].g.grade}</b>. A card where every game gets the same grade usually means the inputs are missing, not that the games are equal — add outside numbers before trusting it.</div>` : '';
   const sec = m => ({ ml: 'Moneyline', total: 'Game total', spread: 'Spread' })[m.market];
   const best = Lg.bestBySection(gs.map(x => ({ section: sec(x.m), conf: x.g.conf ?? 0, sit: x.g.status === 'SIT' || x.g.grade === 'D', x })));
@@ -170,19 +169,31 @@ function deskExtras() { const S = X.S; const ms = S.events.filter(e => e.state =
   return warn + bestT + gateCard(); }
 export const gateOk = e => !!gateS[e.id]?.ok;
 const gateTag = e => { const g = gateS[e.id]; return g?.ok ? ' <span class="tag good">gate ✓</span>' : ' <span class="tag warn">gate open</span>'; };
-function gateCard() { const S = X.S; const e = S.events.find(x => x.id === S.deskOnly) || S.events.find(x => x.state === 'pre'); if (!e) return ''; const g = gateS[e.id] ||= {}; const fresh = t => t && Date.now() - t < 3600e3;
-  if (!g.loading && !g.espnAt) { g.loading = true; loadGate(e); }
-  const s2 = e.league === 'mlb' ? 'MLB StatsAPI lineups' : 'Your check (name the source)'; g.ok = fresh(g.espnAt) && fresh(g.s2At);
+function gateCard() { const S = X.S; const e = S.events.find(x => x.id === S.deskOnly) || S.events.find(x => x.state === 'pre'); if (!e) return ''; const g = gateS[e.id] ||= {};
+  if (!g.loading && !g.tried) { g.loading = true; g.tried = true; loadGate(e); }
+  gateEval(e);
+  const row = (name, at, txt, src) => `<tr><td>${esc(name)}${src ? `<div class="small muted">${esc(src)}</div>` : ''}</td><td>${g.loading && !at ? 'loading…' : txt}</td><td>${at ? stamp(at) : ''}</td></tr>`;
   return `<div class="card"><div class="card-h"><b>Injury & lineup gate</b><span class="small muted">${esc(e.away.abbr)} @ ${esc(e.home.abbr)}</span></div>
-  <div class="tbl"><table><tr><th>Source</th><th>Status</th><th>Checked</th></tr><tr><td>ESPN injury report</td><td>${g.loading ? 'loading…' : g.espnAt ? `${g.espnN} listed` : '<span class="tag bad">unavailable</span>'}</td><td>${g.espnAt ? stamp(g.espnAt) : ''}</td></tr>
-  <tr><td>${s2}</td><td>${e.league === 'mlb' ? (g.s2At ? `${g.s2Txt}` : g.loading ? 'loading…' : '<span class="tag warn">lineups not posted</span>') : g.s2At ? esc(g.s2Txt) : `<button class="btn sm" data-act="gatecheck" data-id="${e.id}">I checked lineups</button>`}</td><td>${g.s2At ? stamp(g.s2At) : ''}</td></tr></table></div>
-  <div class="src">${g.ok ? '<span class="tag good">✓ Gate passed</span> Two sources checked within the last 60 minutes.' : '<span class="tag warn">Gate open</span> Needs two sources checked within 60 minutes before a pick should be trusted.'}</div></div>`; }
+  <div class="tbl"><table><tr><th>Source</th><th>Status</th><th>Checked</th></tr>${row('ESPN injury report', g.espnAt, g.espnAt ? `${g.espnN} listed` : '<span class="tag warn">retrying</span>', g.espnSrc)}
+  ${row(g.s2Name || 'Second source', g.s2At, g.s2At ? `${g.s2N} listed${g.x ? ` · ${g.x.both} on both lists` : ''}` : g.manual ? esc(g.manual.src) : `<span class="tag warn">retrying</span> <button class="btn sm" data-act="gatecheck" data-id="${e.id}">I checked another source</button>`, g.s2Src)}
+  ${e.league === 'mlb' ? row('MLB StatsAPI lineups', g.luAt, g.luAt ? 'both lineups confirmed' : '<span class="tag warn">lineups not posted yet</span>') : ''}</table></div>
+  ${g.x && (g.x.onlyA.length || g.x.onlyB.length) ? `<div class="small muted">Only on one list: ${esc([...g.x.onlyA.map(n => n + ' (ESPN)'), ...g.x.onlyB.map(n => n + ' (' + (g.s2Name || '2nd') + ')')].slice(0, 8).join(', '))} — check these before trusting a pick.</div>` : ''}
+  <div class="src">${g.ok ? '<span class="tag good">✓ Gate passed</span> Two independent sources checked within the last 60 minutes.' : `<span class="tag warn">Gate open</span> ${esc(g.why || 'Needs two sources checked within 60 minutes.')}`}</div></div>`; }
+export function gateEval(e) { const g = gateS[e.id] ||= {}, fresh = t => t && Date.now() - t < 3600e3; const s2 = g.s2At || g.manual?.at;
+  g.ok = !!(fresh(g.espnAt) && fresh(s2) && (e.league !== 'mlb' || fresh(g.luAt)));
+  g.why = !fresh(g.espnAt) ? 'ESPN injury report not pulled in the last 60 minutes.' : !fresh(s2) ? 'Second injury source not pulled in the last 60 minutes.' : e.league === 'mlb' && !fresh(g.luAt) ? 'MLB lineups not confirmed yet.' : ''; return g; }
 const stamp = t => `${new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${Date.now() - t > 3600e3 ? ' <span class="tag warn">' + ic('clock') + ' stale</span>' : ''}`;
-async function loadGate(e) { const g = gateS[e.id]; const inj = await X.I.injuries(e).catch(() => null); if (inj) { g.espnAt = Date.now(); g.espnN = (inj.home?.length || 0) + (inj.away?.length || 0); }
+async function loadGate(e) { const g = gateS[e.id];
+  const [a, b] = await Promise.allSettled([X.I.injuries(e), X.I.injuries2(e)]);
+  if (a.status === 'fulfilled') { const v = a.value; g.espnAt = v.at || Date.now(); g.espnN = (v.home?.length || 0) + (v.away?.length || 0); g.espnSrc = v.src + (v.cached ? ' · last good pull' : ''); g.inj = v; }
+  if (b.status === 'fulfilled') { const v = b.value; g.s2At = v.at || Date.now(); g.s2N = (v.home?.length || 0) + (v.away?.length || 0); g.s2Name = v.src; g.inj2 = v; }
+  else g.s2Name = { nba: 'Sleeper API', nfl: 'Sleeper API', mlb: 'MLB StatsAPI 40-man' }[e.league] || 'ESPN core API (team injuries)';
+  if (g.inj && g.inj2) { const x = X.I.crossCheck(g.inj, g.inj2); g.x = { both: x.home.both + x.away.both, onlyA: [...x.home.onlyA, ...x.away.onlyA], onlyB: [...x.home.onlyB, ...x.away.onlyB] }; }
   if (e.league === 'mlb') { try { const d = new Date(e.start).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); const r = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${d}&hydrate=lineups,probablePitcher`).then(x => x.json());
     const gm = r.dates?.[0]?.games?.find(x => [x.teams.home.team.name, x.teams.away.team.name].some(n => n.includes(e.home.name) || n.includes(e.away.name)));
-    if (gm) { const n = (gm.lineups?.homePlayers?.length || 0) + (gm.lineups?.awayPlayers?.length || 0); if (n >= 18) { g.s2At = Date.now(); g.s2Txt = 'both lineups confirmed'; } else g.s2Txt = null; } } catch {} }
-  g.loading = false; if (X.S.tab === 'desk') rr(); }
+    if (gm) { const n = (gm.lineups?.homePlayers?.length || 0) + (gm.lineups?.awayPlayers?.length || 0); if (n >= 18) g.luAt = Date.now(); } } catch {} }
+  g.loading = false; gateEval(e); if (['desk', 'today'].includes(X.S.tab)) rr(); }
+export const loadGateFor = e => { const g = gateS[e.id] ||= {}; if (!g.tried) { g.tried = true; g.loading = true; loadGate(e); } return g; };
 
 // ---------- Odds additions: line-movement chart ----------
 function lineChart(e) { const h = (LS.get('hist', {})[e.id] || []).filter(s => s.mh != null); if (h.length < 2) return '';
@@ -258,13 +269,13 @@ export async function act(a, t, ctx) { X = ctx; const S = X.S;
     case 'more': $('#more').classList.remove('hide'); $('#more button[data-t]')?.focus(); return true;
     case 'moreclose': closeMore(); return true;
     case 'retry': S.err = null; S.errAt = null; rr(); X.load(); return true;
-    case 'rgx': LS.set('rgx', 1); $('#rg').classList.add('hide'); return true;
+    case 'rgx': return true; // responsible-play banner is always shown
     case 'fav': { const f = favs(); const e = S.events.find(x => x.id === t.dataset.id); if (f.games[e.id]) delete f.games[e.id]; else f.games[e.id] = 1; LS.set('favs', f); if (f.games[e.id]) { toast(`Following ${e.away.abbr} @ ${e.home.abbr} — you'll get line-move alerts while EdgePro is open`); if (LS.get('notify', null) == null && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().then(p => LS.set('notify', p === 'granted' ? 1 : 0)); } rr(); return true; }
     case 'askex': runAsk(t.dataset.q); return true;
     case 'ledbook': ledS.book = t.dataset.k; rr(); return true;
     case 'validate': ledS.valT = $('#valT').value; ledS.val = Lg.validate(Lg.parseRows(ledS.valT)); rr(); return true;
     case 'trretry': loadTrends(trS.ev); return true;
-    case 'gatecheck': { const src = prompt('Which source did you check lineups/injuries on? (e.g. RotoWire, team X account)'); if (!src) return true; const g = gateS[t.dataset.id] ||= {}; g.s2At = Date.now(); g.s2Txt = 'checked on ' + src.slice(0, 40); rr(); return true; }
+    case 'gatecheck': { const src = prompt('Which source did you check lineups/injuries on? (e.g. RotoWire, team X account)'); if (!src) return true; const g = gateS[t.dataset.id] ||= {}; g.manual = { at: Date.now(), src: 'you checked ' + src.slice(0, 40) }; rr(); return true; }
     case 'limsave': { const w = parseFloat($('#limW').value), d = parseFloat($('#limD').value); const l = lim(); l.weekly = w > 0 ? w : null; l.dailyStop = d > 0 ? d : null; LS.set('limits', l); toast('Limits saved'); rr(); return true; }
     case 'lock': { const d = +t.dataset.d; if (!confirm(`Pause bet tracking for ${d === 1 ? '24 hours' : d + ' days'}? You can't end the break early.`)) return true; const l = lim(); l.lockUntil = Date.now() + d * 864e5; LS.set('limits', l); rr(); return true; }
     case 'ptab': pS.tab = t.dataset.k; if (t.dataset.k === 'lb') pS.lb = null; if (t.dataset.k === 'feed') pS.feed = null; rr(); return true;
@@ -447,3 +458,16 @@ export function settledToast(list) { const w = list.filter(b => b.result === 'wi
   toast(`${list.length} bet${list.length === 1 ? '' : 's'} settled · ${w}W ${l}L${o ? ' ' + o + 'P' : ''}`); }
 
 const fmtCard = () => { const f = C.oddsFmt(); return `<div class="card"><div class="card-h"><b>Display</b></div><div class="seg" role="radiogroup" aria-label="Odds format">${[['am', 'American −110'], ['dec', 'Decimal 1.91']].map(([v, t]) => `<button role="radio" aria-checked="${f === v}" class="${f === v ? 'on' : ''}" data-act="ofmt" data-v="${v}">${t}</button>`).join('')}</div><div class="src">Changes how prices are shown. Type prices in American (−110, +150) everywhere.</div></div>`; };
+
+// ---------- odds failover: if ESPN has no line for a pre-game event, use the Odds API multi-book median (real prices, labeled) ----------
+export async function fillOdds(events) { const miss = events.filter(e => e.state === 'pre' && (!e.odds || (e.odds.ml.home?.close == null && e.odds.total.line == null))); if (!miss.length) return 0; let n = 0;
+  for (const e of miss.slice(0, 40)) { const bk = await X.I.books(e).catch(() => null); if (!bk?.rows?.length) continue; const r = bk.rows, md = f => { const v = C.median(r.map(f)); return v == null ? null : Math.round(v); };
+    const tl = C.median(r.map(x => x.tot?.over?.point)), sl = C.median(r.map(x => x.sp?.home?.point));
+    const sd = (close, line) => (close == null ? null : { close, open: null, line: line ?? null, openLine: null });
+    e.odds = { provider: `Odds API median (${r.length} books)`, failover: true, fetchedAt: bk.fetched, ml: { home: sd(md(x => x.ml.home)), away: sd(md(x => x.ml.away)), draw: null },
+      spread: { home: sd(md(x => x.sp?.home?.point === sl ? x.sp.home.price : null), sl), away: sd(md(x => x.sp?.away?.point === -sl ? x.sp.away.price : null), sl == null ? null : -sl) },
+      total: { line: tl, over: sd(md(x => x.tot?.over?.point === tl ? x.tot.over.price : null), tl), under: sd(md(x => x.tot?.under?.point === tl ? x.tot.under.price : null), tl) } }; n++; }
+  return n; }
+
+/** multi-book prices for every pre-game event (one cached Odds API call per sport) — feeds the 2nd source on Desk grades */
+export async function loadBooks(S) { S.books ||= {}; const pre = S.events.filter(e => e.state === 'pre'); for (const e of pre.slice(0, 40)) { if (S.books[e.id]) continue; const bk = await X.I.books(e).catch(() => null); if (bk?.rows) S.books[e.id] = bk.rows; } }

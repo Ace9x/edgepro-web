@@ -1,5 +1,6 @@
 // Live data adapters. All keyless public endpoints, called straight from the browser.
 import { parseAm } from './core.js';
+import * as F from './feeds.js';
 export const LEAGUES = {
   mlb: { n: 'MLB', p: 'baseball/mlb', poly: 'mlb', kalshi: 'KXMLBGAME' },
   nfl: { n: 'NFL', p: 'football/nfl', poly: 'nfl', kalshi: 'KXNFLGAME' },
@@ -26,9 +27,15 @@ export function parseEvent(e, lg, path) {
 }
 export async function scoreboard(lg, date) {
   const L = LEAGUES[lg]; const paths = L.multi || [L.p]; const dq = date ? '&dates=' + ymd(date) : '';
-  const res = await Promise.allSettled(paths.map(p => j(`https://site.api.espn.com/apis/site/v2/sports/${p}/scoreboard?x=1${L.q || ''}${dq}`).then(d => (d.events || []).map(e => parseEvent(e, lg, p)))));
+  // three ESPN hosts with the same public JSON: site API, site.web API, and the CDN core feed (failover in that order)
+  const q = `${(L.q || '').replace(/^&/, '')}${dq}`.replace(/^&/, ''), qs = q ? '?' + q : '';
+  const src = p => [{ name: 'ESPN site API', run: () => j(`https://site.api.espn.com/apis/site/v2/sports/${p}/scoreboard${qs}`).then(d => d.events) },
+    { name: 'ESPN site.web API', run: () => j(`https://site.web.api.espn.com/apis/site/v2/sports/${p}/scoreboard${qs}`).then(d => d.events) },
+    ...(p.startsWith('soccer') ? [] : [{ name: 'ESPN CDN feed', run: () => j(`https://cdn.espn.com/core/${p.split('/')[1]}/scoreboard?xhr=1${q ? '&' + q : ''}`).then(d => d.content?.sbData?.events) }])].map(x => ({ ...x, ok: v => Array.isArray(v) }));
+  const res = await Promise.allSettled(paths.map(p => F.pull('Scores', `sb:${p}:${dq}`, src(p)).then(r => ({ r, ev: (r.v || []).map(e => parseEvent(e, lg, p)) }))));
   if (res.every(r => r.status === 'rejected')) throw res[0].reason;
-  return res.flatMap(r => (r.status === 'fulfilled' ? r.value : [])).sort((a, b) => a.start.localeCompare(b.start));
+  const ok = res.filter(r => r.status === 'fulfilled').map(r => r.value); scoreboard.meta = { source: ok[0]?.r.source, at: Math.min(...ok.map(x => x.r.at)), cached: ok.some(x => x.r.cached) };
+  return ok.flatMap(x => x.ev).sort((a, b) => a.start.localeCompare(b.start));
 }
 export const eventFinal = async (path, id) => { const d = await j(`https://site.api.espn.com/apis/site/v2/sports/${path}/summary?event=${id}`); const c = d.header.competitions[0]; const H = c.competitors.find(t => t.homeAway === 'home'), A = c.competitors.find(t => t.homeAway === 'away'); return { completed: c.status.type.completed, home: +H.score, away: +A.score }; };
 // ---------- Polymarket (gamma API, CORS open) ----------
@@ -36,7 +43,8 @@ const polyCache = {};
 export async function polyEvents(lg) {
   const tag = LEAGUES[lg].poly; if (!tag) return [];
   if (polyCache[tag] && Date.now() - polyCache[tag].t < 60000) return polyCache[tag].v;
-  const v = await j(`https://gamma-api.polymarket.com/events?tag_slug=${tag}&closed=false&limit=300`); polyCache[tag] = { t: Date.now(), v }; return v;
+  const r = await F.pull('Polymarket', 'poly:' + tag, [{ name: 'Polymarket Gamma API', run: () => j(`https://gamma-api.polymarket.com/events?tag_slug=${tag}&closed=false&limit=300`), ok: Array.isArray }, { name: 'Polymarket Gamma API (series)', run: () => j(`https://gamma-api.polymarket.com/events?tag_slug=${tag}&active=true&closed=false&limit=200&order=startDate`), ok: Array.isArray }]);
+  const v = r.v; v.fetchedAt = r.at; polyCache[tag] = { t: Date.now(), v }; return v;
 }
 export function matchPoly(ev, list) {
   const d = new Date(ev.start).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });

@@ -1,6 +1,7 @@
 // Intel: multi-book odds + prop prices (The Odds API via our cached Supabase proxy — key never in the client),
 // ESPN injuries with a transparent injury adjustment, community splits, and bet import (paste / CSV).
 import { parseAm } from './core.js';
+import * as F from './feeds.js';
 const SB = 'https://czjwiudbasqwlwvezmaz.supabase.co', KEY = 'sb_publishable_I9N8lydmQ1h6NQD6JT-jDQ_PQkjsBAK', FN = SB + '/functions/v1/ep-odds';
 export const SPORT = { mlb: ['baseball_mlb'], nfl: ['americanfootball_nfl'], nba: ['basketball_nba'], nhl: ['icehockey_nhl'], wnba: ['basketball_wnba'], ncaaf: ['americanfootball_ncaaf'], ncaab: ['basketball_ncaab'],
   soccer: { 'soccer/eng.1': 'soccer_epl', 'soccer/esp.1': 'soccer_spain_la_liga', 'soccer/ita.1': 'soccer_italy_serie_a', 'soccer/ger.1': 'soccer_germany_bundesliga', 'soccer/fra.1': 'soccer_france_ligue_one', 'soccer/usa.1': 'soccer_usa_mls', 'soccer/uefa.champions': 'soccer_uefa_champs_league' } };
@@ -12,7 +13,7 @@ const cached = (k, f) => (mem[k] ||= f().catch(x => { delete mem[k]; throw x; })
 const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 export async function books(e) {
   const sp = sportOf(e); if (!sp) return { why: 'The Odds API has no feed for this league.' };
-  const r = await cached('o' + sp, () => j(`${FN}?kind=odds&sport=${sp}`));
+  const pr = await cached('o' + sp, () => F.pull('Odds API', 'odds:' + sp, [{ name: 'The Odds API (via EdgePro server)', run: () => j(`${FN}?kind=odds&sport=${sp}`), ok: v => Array.isArray(v?.data) }])); const r = { ...pr.v, fetched: pr.v.fetched || pr.at, cached: pr.cached };
   const g = (r.data || []).find(x => norm(x.home_team) === norm(e.home.full) && norm(x.away_team) === norm(e.away.full) && Math.abs(new Date(x.commence_time) - new Date(e.start)) < 864e5)
     || (r.data || []).find(x => norm(x.home_team).includes(norm(e.home.name)) && norm(x.away_team).includes(norm(e.away.name)) && Math.abs(new Date(x.commence_time) - new Date(e.start)) < 864e5);
   if (!g) return { why: 'No matching game in the multi-book feed yet.', fetched: r.fetched };
@@ -30,8 +31,27 @@ export async function props(e, oddsId, market) {
 // ---------- injuries (ESPN game summary: same feed as espn.com injury reports) ----------
 const W = { Out: 1, 'Injured Reserve': 1, Suspension: 1, Doubtful: 0.75, Questionable: 0.3, 'Day-To-Day': 0.3, Probable: 0.05 };
 const IMPACT = { nba: 0.03, wnba: 0.03, ncaab: 0.02, nfl: 0.02, ncaaf: 0.015, nhl: 0.015, mlb: 0.01, soccer: 0.015 };
+// ---------- second, independent injury source ----------
+// NBA/NFL: Sleeper public players API (free, CORS open). MLB: MLB StatsAPI injured list. NHL/others: ESPN core API team injuries (separate ESPN service).
+const norm2 = n => String(n || '').toLowerCase().replace(/[^a-z]/g, '');
+const sleeperMem = {};
+export async function injuries2(e) {
+  const lg = e.league, sides = ['home', 'away'];
+  if (lg === 'nba' || lg === 'nfl') { const r = await (sleeperMem[lg] ||= F.pull('Injuries (2nd source)', 'sleeper:' + lg, [{ name: 'Sleeper API', run: () => j(`https://api.sleeper.app/v1/players/${lg}`).then(d => Object.values(d).filter(p => p.injury_status && p.team).map(p => ({ n: p.full_name || (p.first_name + ' ' + p.last_name), t: p.team, s: p.injury_status }))), ok: Array.isArray }], { cache: false }).catch(x => { delete sleeperMem[lg]; throw x; }));
+    const fix = { WSH: 'WAS', GS: 'GSW', NY: 'NYK', SA: 'SAS', NO: 'NOP', UTAH: 'UTA', PHX: 'PHO' }, ab = a => [a, fix[a], Object.keys(fix).find(k => fix[k] === a)].filter(Boolean);
+    const out = {}; sides.forEach(sd => (out[sd] = r.v.filter(p => ab(e[sd].abbr).includes(p.t)).map(p => ({ name: p.n, status: p.s })))); return { ...out, src: 'Sleeper API', at: r.at }; }
+  if (lg === 'mlb') { const out = {}; const t = await j(`https://statsapi.mlb.com/api/v1/teams?sportId=1`); for (const sd of sides) { const tm = t.teams.find(x => norm2(x.name).includes(norm2(e[sd].name)) || x.abbreviation === e[sd].abbr);
+      if (!tm) { out[sd] = []; continue; } const r = await F.pull('Injuries (2nd source)', 'mlbil:' + tm.id, [{ name: 'MLB StatsAPI', run: () => j(`https://statsapi.mlb.com/api/v1/teams/${tm.id}/roster?rosterType=40Man`).then(d => d.roster.filter(p => /injur|IL/i.test(p.status?.description || '')).map(p => ({ name: p.person.fullName, status: p.status.description }))), ok: Array.isArray }]); out[sd] = r.v; out.at = r.at; }
+    return { home: out.home, away: out.away, src: 'MLB StatsAPI 40-man', at: out.at || Date.now() }; }
+  const sp = e.path.split('/'), out = {}; let at = Date.now();
+  for (const sd of sides) { const r = await F.pull('Injuries (2nd source)', 'core:' + e[sd].id, [{ name: 'ESPN core API', run: async () => { const d = await j(`https://sports.core.api.espn.com/v2/sports/${sp[0]}/leagues/${sp[1]}/teams/${e[sd].id}/injuries?limit=50`);
+      return Promise.all((d.items || []).slice(0, 25).map(x => j(x.$ref.replace('http:', 'https:')).then(i => j(i.athlete.$ref.replace('http:', 'https:')).then(a => ({ name: a.displayName, status: i.status }))).catch(() => null))).then(l => l.filter(Boolean)); }, ok: Array.isArray }]); out[sd] = r.v; at = r.at; }
+  return { ...out, src: 'ESPN core API (team injuries)', at }; }
+/** cross-check: players both sources list, and ones only one lists */
+export function crossCheck(a, b) { const res = {}; for (const sd of ['home', 'away']) { const A = (a?.[sd] || []), B = (b?.[sd] || []), nb = new Set(B.map(x => norm2(x.name)));
+  res[sd] = { both: A.filter(x => nb.has(norm2(x.name))).length, onlyA: A.filter(x => !nb.has(norm2(x.name))).map(x => x.name), onlyB: B.filter(x => !new Set(A.map(y => norm2(y.name))).has(norm2(x.name))).map(x => x.name) }; } return res; }
 export async function injuries(e) {
-  const d = await cached('s' + e.id, () => j(`https://site.api.espn.com/apis/site/v2/sports/${e.path}/summary?event=${e.id}`));
+  const pr = await cached('s' + e.id, () => F.pull('Injuries', 'sum:' + e.id, [{ name: 'ESPN summary', run: () => j(`https://site.api.espn.com/apis/site/v2/sports/${e.path}/summary?event=${e.id}`) }, { name: 'ESPN summary (site.web)', run: () => j(`https://site.web.api.espn.com/apis/site/v2/sports/${e.path}/summary?event=${e.id}`) }])); const d = pr.v;
   const key = new Set((d.leaders || []).flatMap(t => (t.leaders || []).flatMap(c => (c.leaders || []).map(x => x.athlete?.id))));
   const team = {}; let shift = 0; const per = IMPACT[e.league] || 0.015;
   for (const t of d.injuries || []) { const side = t.team?.id === e.home.id ? 'home' : t.team?.id === e.away.id ? 'away' : null; if (!side) continue;
@@ -39,7 +59,7 @@ export async function injuries(e) {
       const imp = isKey ? per * w : per * w * 0.2; shift += side === 'home' ? -imp : imp;
       return { id: i.athlete?.id, name: i.athlete?.displayName, pos: i.athlete?.position?.abbreviation, status: st, detail: i.details?.type || i.shortComment || '', key: isKey, imp }; }); }
   shift = Math.max(-0.12, Math.min(0.12, shift));
-  return { home: team.home || [], away: team.away || [], shift, src: 'ESPN injury report (game summary)' };
+  return { home: team.home || [], away: team.away || [], shift, src: pr.source, at: pr.at, cached: pr.cached };
 }
 // ---------- community splits (anonymous EdgePro tracked bets; no personal data) ----------
 const dev = () => localStorage.ep_dev ||= (crypto.randomUUID?.() || Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/-/g, '');
