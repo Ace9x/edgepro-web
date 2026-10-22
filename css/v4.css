@@ -211,3 +211,6 @@ abbr.gl{text-decoration:underline dotted;text-underline-offset:3px;cursor:help}
 .glog .ln{position:absolute;left:0;right:0;border-top:1px dashed #E6EAF0;opacity:.7}
 .pchip{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
 .pchip.real{background:#1E2630;color:#E6EAF0;border:1px solid #2F3945}.pchip.assumed{border:1px dashed #FFB020;color:#FFB020}
+/* prop sparklines (#97) + player card (#21) */
+.psk{display:block;overflow:visible}.psk rect{fill:var(--text-3)}.psk rect.bo{fill:var(--gr)}.psk rect.bu{fill:var(--rd)}.psk line{stroke:var(--text);stroke-width:1;stroke-dasharray:2 2;opacity:.7}
+.pcard td,.pcard th{white-space:nowrap}
