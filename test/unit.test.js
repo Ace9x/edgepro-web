@@ -15,3 +15,19 @@ test('settlement', () => { assert.deepEqual(C.settle({ market: 'ml', side: 'home
   assert.equal(C.settle({ market: 'total', side: 'under', line: 6, price: -110, stake: 11 }, { home: 4, away: 3 }).result, 'loss'); });
 test('clv + record', () => { assert.ok(C.clv(120, 100) > 0); const r = C.record([{ stake: 10, result: 'win', profit: 10, clv: 2 }, { stake: 10, result: 'loss', profit: -10, clv: 0 }, { stake: 5 }]); assert.deepEqual([r.w, r.l, r.open, r.roi, r.avgClv], [1, 1, 1, 0, 1]); });
 test('correlation', () => { const w = C.correlation([{ eventId: 1, market: 'ml', side: 'home', label: 'TB@MIL' }, { eventId: 1, market: 'spread', side: 'home' }, { eventId: 2, market: 'ml' }]); assert.ok(w.some(x => /double exposure/.test(x))); assert.equal(C.correlation([{ eventId: 1 }, { eventId: 2 }]).length, 0); assert.equal(C.parlayPrice([{ price: 100 }, { price: 100 }]), 300); });
+
+test('self-learning: gradeShown result + CLV', () => {
+  const g = C.gradeShown({ market: 'ml', side: 'home', shownPrice: 120, closePrice: -110 }, { home: 3, away: 2 });
+  assert.equal(g.result, 'win'); assert.equal(g.units, 1.2); assert.ok(g.clv > 0);
+  assert.equal(C.gradeShown({ market: 'total', side: 'over', line: 8.5, shownPrice: -110 }, { home: 3, away: 2 }).result, 'loss');
+});
+test('self-learning: calibrate stays neutral until enough data, then shrinks overconfidence', () => {
+  assert.deepEqual([C.calibrate([]).k, C.calibrate([]).n], [1, 0]);
+  const recs = Array.from({ length: 60 }, (_, i) => ({ conf: 0.7, result: i % 2 ? 'win' : 'loss', src: [{ name: 'Book no-vig', prob: 0.7 }] }));
+  const cal = C.calibrate(recs); assert.ok(cal.k < 1 && cal.k >= 0.5); assert.ok(cal.w['book no-vig'] < 1);
+  assert.ok(C.applyCal(0.7, cal) < 0.7);
+});
+test('self-learning: summarize counts losses and pushes honestly', () => {
+  const s = C.summarize([{ result: 'win', units: 1, clv: 2, conf: 0.6 }, { result: 'loss', units: -1, clv: -1 }, { result: 'push', units: 0 }, { conf: 0.6 }]).all;
+  assert.deepEqual([s.w, s.l, s.p, s.hit, s.units, s.avgClv], [1, 1, 1, 0.5, 0, 0.5]);
+});

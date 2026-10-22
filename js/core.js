@@ -25,7 +25,8 @@ export function gradePick(pick) {
   const implied = amToProb(pick.price);
   why.push(`Price ${fmtAm(pick.price)} → implied ${(implied * 100).toFixed(1)}%`);
   if (!outside.length) { why.push(models.length ? 'Model-only play → PASS (no model-only plays)' : 'No outside numbers → PASS'); return { grade: 'D', official: false, conf: null, edge: null, why, status: 'PASS' }; }
-  const conf = outside.reduce((s, x) => s + x.prob, 0) / outside.length;
+  const raw = pick.cal ? weightedConf(outside, pick.cal) : outside.reduce((s, x) => s + x.prob, 0) / outside.length; const conf = applyCal(raw, pick.cal);
+  if (pick.cal && (pick.cal.k !== 1 || Object.keys(pick.cal.w || {}).length)) why.push(`Self-calibrated from ${pick.cal.n} graded results: raw ${(raw * 100).toFixed(1)}% → ${(conf * 100).toFixed(1)}%`);
   outside.forEach(s => why.push(`Outside #: ${s.name} ${(s.prob * 100).toFixed(1)}%`));
   models.forEach(s => why.push(`Model (check only, not counted): ${s.name} ${(s.prob * 100).toFixed(1)}%`));
   let grade = tierOf(conf); why.push(`Avg of ${outside.length} outside # = ${(conf * 100).toFixed(1)}% → tier ${grade}`);
@@ -83,3 +84,31 @@ export function correlation(legs) {
   return out;
 }
 export const parlayPrice = legs => { const d = legs.reduce((x, l) => x * amToDec(l.price), 1); return d >= 2 ? Math.round((d - 1) * 100) : Math.round(-100 / (d - 1)); };
+
+// ---------- Self-learning: grade shown picks, recalibrate ----------
+/** rec: {market, side, line, shownPrice, closePrice, conf, src:[{name,prob}]}; final {home, away} */
+export function gradeShown(rec, final) {
+  const s = settle({ market: rec.market, side: rec.side, line: rec.line, price: rec.shownPrice, stake: 1 }, final); if (!s) return null;
+  return { result: s.result, units: s.profit, clv: rec.closePrice != null ? clv(rec.shownPrice, rec.closePrice) : null };
+}
+const srcKey = n => String(n).toLowerCase().replace(/ no-vig$/, ' no-vig').trim();
+export const MIN_CAL = 40, MIN_SRC = 30;
+/** Fit from settled, non-push graded records. Returns weights per source (Brier-skill based) and a confidence
+ *  slope k: calibrated = 0.5 + (raw - 0.5) * k. Until enough results exist everything stays neutral (w=1, k=1). */
+export function calibrate(recs) {
+  const s = recs.filter(r => r.result === 'win' || r.result === 'loss'); const out = { n: s.length, k: 1, w: {}, brier: {} };
+  const by = {}; s.forEach(r => (r.src || []).forEach(x => { const k = srcKey(x.name); (by[k] = by[k] || []).push((x.prob - (r.result === 'win' ? 1 : 0)) ** 2); }));
+  for (const [k, a] of Object.entries(by)) { const b = a.reduce((x, y) => x + y, 0) / a.length; out.brier[k] = { n: a.length, b: +b.toFixed(4) }; if (a.length >= MIN_SRC) out.w[k] = +Math.min(2, Math.max(0.25, (0.25 - b) / 0.02 + 1)).toFixed(3); }
+  const c = s.filter(r => r.conf != null && Math.abs(r.conf - 0.5) > 0.005);
+  if (c.length >= MIN_CAL) { let num = 0, den = 0; c.forEach(r => { const d = r.conf - 0.5; num += d * ((r.result === 'win' ? 1 : 0) - 0.5); den += d * d; }); out.k = +Math.min(1.2, Math.max(0.5, num / den)).toFixed(3); }
+  return out;
+}
+export const applyCal = (conf, cal) => (conf == null || !cal ? conf : Math.min(0.99, Math.max(0.01, 0.5 + (conf - 0.5) * (cal.k ?? 1))));
+export const weightedConf = (srcs, cal) => { let t = 0, w = 0; srcs.forEach(s => { const x = cal?.w?.[srcKey(s.name)] ?? 1; t += s.prob * x; w += x; }); return w ? t / w : null; };
+/** Honest summary by any key fn: hit rate excludes pushes; CLV averaged where a close exists. */
+export function summarize(recs, keyFn = () => 'all') {
+  const g = {}; recs.filter(r => r.result).forEach(r => { const k = keyFn(r); const x = g[k] = g[k] || { w: 0, l: 0, p: 0, units: 0, clv: [], conf: [] };
+    x[r.result === 'win' ? 'w' : r.result === 'loss' ? 'l' : 'p']++; x.units += r.units || 0; if (r.clv != null) x.clv.push(r.clv); if (r.conf != null) x.conf.push(r.conf); });
+  return Object.fromEntries(Object.entries(g).map(([k, x]) => [k, { w: x.w, l: x.l, p: x.p, n: x.w + x.l + x.p, hit: x.w + x.l ? +(x.w / (x.w + x.l)).toFixed(3) : null, units: +x.units.toFixed(2),
+    avgClv: x.clv.length ? +(x.clv.reduce((a, b) => a + b, 0) / x.clv.length).toFixed(2) : null, beatClose: x.clv.length ? +(x.clv.filter(v => v > 0).length / x.clv.length).toFixed(3) : null, expHit: x.conf.length ? +(x.conf.reduce((a, b) => a + b, 0) / x.conf.length).toFixed(3) : null }]));
+}

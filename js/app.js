@@ -1,5 +1,6 @@
 import * as C from './core.js';
 import * as D from './data.js';
+import * as L from './learn.js';
 const $ = s => document.querySelector(s), V = $('#view');
 const LS = { get: (k, d) => { try { return JSON.parse(localStorage.getItem('ep_' + k)) ?? d; } catch { return d; } }, set: (k, v) => localStorage.setItem('ep_' + k, JSON.stringify(v)) };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -14,7 +15,7 @@ async function load() {
     const [ev, pl, k] = await Promise.all([D.scoreboard(lg, date), D.polyEvents(lg).catch(e => (S.polyErr = e.message, [])), D.kalshi(lg)]);
     if (lg !== S.league) return;
     S.events = ev; S.kalshi = k; S.poly = {}; S.kal = {}; ev.forEach(e => { S.poly[e.id] = D.matchPoly(e, pl); S.kal[e.id] = D.matchKalshi(e, k); });
-    S.fetched = new Date(); S.err = null; snapshot(); await autoSettle();
+    S.fetched = new Date(); S.err = null; snapshot(); await autoSettle(); await L.gradeOpen(S.events, D.eventFinal, closeFor).catch(() => {});
   } catch (e) { S.err = e.message; }
   render();
 }
@@ -69,7 +70,7 @@ function markets(e) {
 const userSrc = k => LS.get('usrc', {})[k] || [];
 function grade(m) {
   const extra = userSrc(m.key); const w = S.wx?.[m.e.id];
-  return C.gradePick({ sport: m.e.league, market: m.market, side: m.label, price: m.best?.book === m.e.odds?.provider ? m.price : m.price, sources: [...m.src, ...extra],
+  return C.gradePick({ cal: L.calibration(), sport: m.e.league, market: m.market, side: m.label, price: m.best?.book === m.e.odds?.provider ? m.price : m.price, sources: [...m.src, ...extra],
     wind: w && !w.indoor ? { mph: w.mph, blowingIn: LS.get('windIn', {})[m.e.id] ?? null } : null });
 }
 
@@ -104,7 +105,7 @@ const views = {
       <table><tr><th>Bet</th><th>Open</th><th>${esc(e.odds.provider)}</th><th>Poly</th><th>Kalshi</th><th>Best</th><th>No-vig fair</th></tr>${m.map(x => { const q = b => x.quotes.find(y => y.book === b); return `<tr><td>${esc(x.label)}</td><td>${C.fmtAm(x.open)}${x.openLine != null && x.openLine !== x.line ? ' (' + x.openLine + ')' : ''}</td><td>${C.fmtAm(x.price)}</td><td>${q('Polymarket') ? C.fmtAm(q('Polymarket').price) : '—'}</td><td>${q('Kalshi') ? C.fmtAm(q('Kalshi').price) : '—'}</td><td><b>${C.fmtAm(x.best?.price)}</b></td><td>${pct(x.src[0].prob)} (${C.fmtAm(C.probToAm(x.src[0].prob))})</td></tr>`; }).join('')}</table>
       <div class="src">Hold ${m[0] ? (m[0].hold * 100).toFixed(1) + '%' : '—'} · Line history on this device: ${hs.length} snapshot(s)${hs.length > 1 ? ' — ' + hs.map(s => `${new Date(s.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} ${C.fmtAm(s.mh)}`).slice(-6).join(' → ') : ' (keeps recording while the app is open)'}</div></div>`; }).join('')}`; },
   desk() { const ms = S.events.filter(e => e.state === 'pre').flatMap(markets).filter(m => m.market !== 'spread'); const gs = ms.map(m => ({ m, g: grade(m) })).sort((a, b) => (b.g.official - a.g.official) || ((b.g.conf || 0) - (a.g.conf || 0)));
-    const only = S.deskOnly; const list = only ? gs.filter(x => x.m.e.id === only) : gs;
+    L.logShown(gs).catch(() => {}); const only = S.deskOnly; const list = only ? gs.filter(x => x.m.e.id === only) : gs;
     return head() + `<div class="card"><b>Research Desk</b> — every pick graded by the desk rules: tiers A ≥75% · B 68–74 · C+ 62–67 · C 58–61 · D pass. <b>Official only at C+ or better with two independent outside numbers</b>, juice cap −230, no model-only plays, MLB Over wind gate (≥9 mph). Outside numbers loaded automatically: de-vigged book price, Polymarket, Kalshi (when reachable). Add your own (e.g. ZCode, Ballpark Pal %) on any pick.
     ${only ? '<div><button class="btn sm" data-act="deskall">Show whole slate</button></div>' : ''}<div class="src">Official: ${gs.filter(x => x.g.official).length} · graded: ${gs.length}. A book's own de-vigged line rarely beats its own price — Officials require the markets to disagree with the book.</div></div>
     ${list.map(({ m, g }) => `<div class="card"><div class="row" style="justify-content:space-between"><div><span class="grade g${g.grade.replace('+', 'p')}">${g.grade}</span> <b>${esc(m.label)}</b> ${C.fmtAm(m.price)} <span class="muted small">${esc(m.e.away.abbr)} @ ${esc(m.e.home.abbr)} · ${tm(m.e.start)}</span></div><span class="tag ${g.official ? 'off' : ''}">${g.status}</span></div>
@@ -127,6 +128,17 @@ const views = {
     ${me ? `<div style="margin-top:8px">You are <b>@${esc(me.handle)}</b> · ${mine.length} shared pick(s) · <button class="btn sm" data-act="shareprof">Copy my profile link</button></div>` : `<div class="row"><div><label>Pick a handle</label><input id="handle" maxlength="20" placeholder="e.g. ace9x"></div><button class="btn pri" data-act="mkprof">Create profile</button></div>`}</div>
     <div class="card"><b>My picks</b>${mine.map(p => pickRow(p)).join('') || '<div class="muted small">Share a pick from the Desk to post it here.</div>'}</div>
     ${Object.values(fol).map(f => `<div class="card"><b>@${esc(f.handle)}</b> <span class="muted small">followed · ${f.picks.length} picks · ${recOf(f.picks)}</span> <button class="btn sm" data-act="unf" data-h="${esc(f.handle)}">Unfollow</button>${f.picks.map(pickRow).join('')}</div>`).join('') || '<div class="card muted small">You are not following anyone yet. Open a friend\'s EdgePro share link to follow them.</div>'}`; },
+  record() { const R = L.cached(), done = R.filter(r => r.result), cal = L.calibration() || { n: 0, k: 1, w: {}, brier: {} };
+    const all = C.summarize(R).all, tbl = (title, fn) => { const g = C.summarize(R, fn); const ks = Object.keys(g).sort(); return `<div class="card"><b>${title}</b>${ks.length ? `<table><tr><th></th><th>W-L-P</th><th>Hit</th><th>Expected</th><th>Units (1u flat)</th><th>Avg CLV</th><th>Beat close</th></tr>${ks.map(k => { const x = g[k]; return `<tr><td>${esc(k)}</td><td>${x.w}-${x.l}-${x.p}</td><td>${x.hit == null ? '—' : pct(x.hit)}</td><td>${x.expHit == null ? '—' : pct(x.expHit)}</td><td class="${x.units >= 0 ? 'mv-up' : 'mv-dn'}">${x.units > 0 ? '+' : ''}${x.units}</td><td>${x.avgClv == null ? '—' : x.avgClv + ' pts'}</td><td>${x.beatClose == null ? '—' : pct(x.beatClose)}</td></tr>`; }).join('')}</table>` : '<div class="muted small">No graded picks yet.</div>'}</div>`; };
+    return `<div class="card"><b>How we're doing</b> <span class="muted small">Every pick and lean the Desk showed on this device, graded automatically from ESPN finals — wins and losses. Units assume a flat 1u per pick for scoring only; EdgePro never suggests stakes. CLV = shown price vs. the last pre-game price.</span>
+    <div class="oddrow"><div class="od">Logged<b id="recN">${R.length}</b></div><div class="od">Graded<b>${done.length}</b></div><div class="od">Record<b>${all ? `${all.w}-${all.l}-${all.p}` : '—'}</b></div></div>
+    <div class="oddrow"><div class="od">Hit rate<b>${all?.hit == null ? '—' : pct(all.hit)}</b></div><div class="od">Units<b>${all ? (all.units > 0 ? '+' : '') + all.units : '—'}</b></div><div class="od">Avg CLV<b>${all?.avgClv == null ? '—' : all.avgClv + ' pts'}</b></div></div>
+    ${R.length ? '' : '<div class="muted" style="margin-top:8px">Nothing graded yet. The record starts empty and fills in as Desk picks you viewed reach a final score.</div>'}</div>
+    ${tbl('By grade', r => (r.official ? 'Official ' : 'Lean ') + r.grade)}${tbl('By sport', r => D.LEAGUES[r.league]?.n || r.league)}${tbl('By market', r => ({ ml: 'Moneyline', total: 'Total', spread: 'Spread' })[r.market])}
+    <div class="card"><b>Self-calibration</b> <div class="small muted">Confidence slope k = ${cal.k} from ${cal.n} decided results (stays 1.0 until ${C.MIN_CAL}). Source weights switch on after ${C.MIN_SRC} graded results per source.</div>
+    <table><tr><th>Source</th><th>Graded</th><th>Brier</th><th>Weight</th></tr>${Object.entries(cal.brier).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v.n}</td><td>${v.b}</td><td>${cal.w[k] ?? '1 (not enough data)'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No graded sources yet.</td></tr>'}</table>
+    <label class="row small" style="align-items:center;margin-top:8px"><input type="checkbox" id="syncT" ${L.syncOn() ? 'checked' : ''}> Share anonymous grades to the EdgePro server (results only, no account, insert-only)</label></div>
+    <div class="card"><b>Recent graded</b>${done.slice().sort((a, b) => new Date(b.start) - new Date(a.start)).slice(0, 30).map(r => `<div class="small" style="border-top:1px solid var(--line);padding:6px 0"><span class="grade g${r.grade.replace('+', 'p')}">${r.grade}</span> <b>${esc(r.label)}</b> ${C.fmtAm(r.shownPrice)} · ${esc(r.game)} ${esc(r.final)} · <b class="${r.result === 'win' ? 'mv-up' : r.result === 'loss' ? 'mv-dn' : ''}">${r.result}</b>${r.clv != null ? ` · CLV ${r.clv > 0 ? '+' : ''}${r.clv}` : ''}</div>`).join('') || '<div class="muted small">None yet.</div>'}</div>`; },
   tools() { return `<div class="card"><b>No-vig fair odds & EV calculator</b><div class="row"><div><label>Side A price</label><input id="tA" value="-110" style="width:90px"></div><div><label>Side B price</label><input id="tB" value="-110" style="width:90px"></div><div><label>Your win % for A (optional)</label><input id="tP" placeholder="e.g. 55" style="width:90px"></div><div><label>Price you can get on A</label><input id="tX" placeholder="e.g. +105" style="width:90px"></div></div><div id="tOut" class="card"></div></div>
     <div class="card"><b>Responsible gambling</b><p class="small muted">EdgePro is free research software for adults 21+ where sports wagering is legal. It never takes bets, holds money, or links to deposit offers. Odds and probabilities are estimates; no outcome is guaranteed. If gambling stops being fun, call or text <a href="tel:18004264537">1-800-GAMBLER</a> (NY: 1-877-8-HOPENY).</p></div>
     <div class="card small muted">Data sources: ESPN public site API (scores, schedules, DraftKings/ESPN BET odds incl. open & close), Polymarket Gamma API (prediction-market prices), Kalshi public API (when your network allows), Open-Meteo (game-time wind), ESPN game logs (props). All free & keyless. Line history and bets are stored only in this browser.</div>`; },
@@ -146,7 +158,7 @@ function propOut() { const P = S.prop; if (!P?.log) return P?.loading ? '<div cl
 
 function render() {
   $('#leagues').innerHTML = Object.entries(D.LEAGUES).map(([k, l]) => `<button class="chip ${k === S.league ? 'on' : ''}" data-lg="${k}">${l.n}</button>`).join('');
-  $('#leagues').classList.toggle('hide', ['bets', 'community', 'tools'].includes(S.tab));
+  $('#leagues').classList.toggle('hide', ['bets', 'community', 'tools', 'record'].includes(S.tab));
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === S.tab));
   V.innerHTML = views[S.tab](); if (S.tab === 'tools') calc();
 }
@@ -197,7 +209,7 @@ document.addEventListener('click', async ev => {
   if (a === 'shareprof') copyLink(); if (a === 'unf') { const f = LS.get('follow', {}); delete f[t.dataset.h]; LS.set('follow', f); render(); }
 });
 document.addEventListener('input', ev => { if (['tA', 'tB', 'tP', 'tX'].includes(ev.target.id)) calc(); if (ev.target.id === 'pLine') { S.prop.line = ev.target.value; $('#pOut').innerHTML = propOut(); } });
-document.addEventListener('change', async ev => { const id = ev.target.id;
+document.addEventListener('change', async ev => { const id = ev.target.id; if (id === 'syncT') { localStorage.ep_sync = ev.target.checked ? '1' : '0'; if (ev.target.checked) L.sync(L.cached().filter(r => r.result)); }
   if (ev.target.dataset.windin) { const w = LS.get('windIn', {}); const v = ev.target.value; if (v === '') delete w[ev.target.dataset.windin]; else w[ev.target.dataset.windin] = v === '1'; LS.set('windIn', w); render(); }
   if (id === 'pGame') { const e = S.events.find(x => x.id === ev.target.value); if (!e) return; S.prop = { ev: e.id, roster: [], loading: true }; render(); const [a, h] = await Promise.all([D.roster(e.path, e.away.id).catch(() => []), D.roster(e.path, e.home.id).catch(() => [])]); S.prop.roster = [...a.map(r => ({ ...r, pos: e.away.abbr + ' ' + (r.pos || '') })), ...h.map(r => ({ ...r, pos: e.home.abbr + ' ' + (r.pos || '') }))]; S.prop.loading = false; render(); }
   if (id === 'pPlayer') { const e = S.events.find(x => x.id === S.prop.ev); S.prop.pid = ev.target.value; S.prop.log = null; S.prop.loading = true; render(); S.prop.log = await D.gamelog(e.path, ev.target.value).catch(() => ({ labels: [], rows: [] })); S.prop.loading = false; S.prop.stat = S.prop.log.labels.length - 1; render(); }
@@ -230,5 +242,5 @@ $('#mic').onclick = () => { const SR = window.SpeechRecognition || window.webkit
   const r = new SR(); r.lang = 'en-US'; r.interimResults = false; $('#mic').classList.add('rec'); S.speak = true; r.onresult = e => ask(e.results[0][0].transcript); r.onend = () => $('#mic').classList.remove('rec'); r.onerror = e => say('Mic error: ' + e.error); r.start(); };
 
 setInterval(() => { const el = $('#clock'); if (el) el.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }, 1000);
-importFollow(); render(); load(); setInterval(() => { if (!document.hidden && !$('#modal').classList.contains('hide') === false) load(); }, 60000);
+importFollow(); L.refresh().catch(() => {}).then(render); load(); setInterval(() => { if (!document.hidden && !$('#modal').classList.contains('hide') === false) load(); }, 60000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
