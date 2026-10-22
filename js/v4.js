@@ -483,7 +483,7 @@ export async function loadBooks(S) { S.books ||= {}; const pre = S.events.filter
 const oddsAt = e => e.odds?.fetchedAt ? new Date(e.odds.fetchedAt).getTime() : X.S.fetched ? +X.S.fetched : null;
 export function fresh(e) { const t = oddsAt(e); const m = t ? (Date.now() - t) / 60000 : null; return { t, m, warn: m != null && m > 30, stale: m != null && m > 90 }; }
 /** grade chip: letter + model % + plain label; greyed when a gate blocks it */
-export function gradeChip(g, { blocked = null } = {}) { const L = g.grade, lab = blocked ? blocked : L === 'D' ? 'Pass' : L === 'C' ? 'Lean' : g.official ? 'Official' : 'Not official';
+export function gradeChip(g, { blocked = null } = {}) { const L = g.grade, lab = blocked ? blocked : g.status === 'SIT' ? 'SIT' : L === 'D' ? 'Pass' : L === 'C' ? 'Lean' : g.official ? 'Official' : 'Not official';
   return `<span class="gchip g${L}${blocked ? ' blocked' : ''}" title="${esc(blocked ? 'Grade hidden: ' + blocked : 'Model ' + (g.conf == null ? 'n/a' : (g.conf * 100).toFixed(1) + '%'))}"><b>${blocked ? '–' : L}</b>${!blocked && g.conf != null ? `<span class="num">${Math.round(g.conf * 100)}%</span>` : ''}<span>${esc(lab)}</span></span>`; }
 /** Polymarket vs sportsbook in cents and implied % */
 export function crossRow(m) { const pm = m.quotes.find(q => /^Polymarket/.test(q.book)), bk = m.quotes[0]; if (!bk) return '';
@@ -502,8 +502,8 @@ export function pickCard(m, g) { const e = m.e, f = fresh(e), gt = gateS[e.id], 
   const fails = g.why.filter(w => w.startsWith('✗ ')).map(w => w.slice(2));
   const reasons = g.why.filter(w => !w.startsWith('✗ ') && !/^✓|^Not official/.test(w)).slice(0, 5);
   return `<div class="card pick${blocked ? ' greyed' : ''}" data-ev="${e.id}"><div class="row" style="justify-content:space-between;align-items:center;gap:12px">
-  <div style="min-width:0">${gradeChip(g, { blocked })} <b>${esc(m.label)}</b> <span class="num">${am(m.price)}</span><div class="small muted">${esc(e.away.abbr)} @ ${esc(e.home.abbr)} · ${tm2(e.start)} · <span class="${f.warn ? 'warn-t' : ''}">Odds ${f.t ? fmtD(f.t, { hour: 'numeric', minute: '2-digit' }) + ' · ' + Math.round(f.m) + 'm' : '—'}</span>${gt?.espnAt ? ` · Injuries ${fmtD(gt.espnAt, { hour: 'numeric', minute: '2-digit' })}` : ''}</div></div>
-  ${g.status === 'SIT' ? '<span class="tag warn">SIT</span>' : gateOpen && g.official === false && !fails.length ? '' : ''}</div>
+  <div style="min-width:0">${gradeChip(g, { blocked })} <b>${esc(m.label)}</b> <span class="num">${am(m.price)}</span><div class="small muted">${esc(e.away.abbr)} @ ${esc(e.home.abbr)} · ${tm2(e.start)} · <span class="${f.warn ? 'warn-t' : ''}">Odds ${f.t ? tm2(f.t) + ' ET · ' + Math.round(f.m) + 'm' : 'no price'}</span>${gt?.espnAt ? ` · Injuries ${tm2(gt.espnAt)} ET` : ''}</div></div>
+</div>
   ${crossRow(m)}${spark(e, m.market === 'total' ? 'tot' : m.market === 'spread' ? 'sp' : m.side === 'home' ? 'mh' : 'ma')}
   ${gateOpen ? `<div class="small warn-t">${ic('warn')} ${esc(gt?.why || 'Injury & lineup check not run yet')} — grade can't be Official.</div>` : ''}
   <details class="whyg"><summary>Why this grade</summary><ul class="why">${reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul><div class="pills">${srcs}</div>
