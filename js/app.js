@@ -18,7 +18,8 @@ const S = window.EP = { league: LS.get('league', 'mlb'), tab: 'today', events: [
 // ---------- loading ----------
 async function load() {
   S.busy = true; document.querySelector('.meta')?.classList.add('busy');
-  const lg = S.league; const date = S.dayOff ? new Date(Date.now() + S.dayOff * 864e5) : null;
+  const lg = S.league; // ESPN's undated scoreboard stays on yesterday until late morning, so Today asks for today's date (before 5 AM it keeps last night's slate)
+  const date = S.dayOff || new Date().getHours() >= 5 ? new Date(Date.now() + S.dayOff * 864e5) : null;
   try {
     const [ev, pl, k] = await Promise.all([D.scoreboard(lg, date), D.polyEvents(lg).catch(e => (S.polyErr = e.message, [])), D.kalshi(lg)]);
     if (lg !== S.league) return;
@@ -290,7 +291,8 @@ function copyLink() { const me = LS.get('me'); const data = { h: me.handle, p: L
   (navigator.clipboard?.writeText(url) || Promise.reject()).then(() => toast('Profile link copied — send it to friends.'), () => prompt('Copy your share link:', url)); S.lastShare = url; }
 const toast = (t, undo) => V4.toast(t, undo);
 async function scanRoster() { const P = S.prop, e = S.events.find(x => x.id === P.ev); if (!e || !P.log) return; const label = P.log.labels[+P.stat]; P.scan = { label, rows: [], sort: 'l10' }; toast('Scanning roster…');
-  const uL = parseFloat(P.line); for (const r of P.roster.slice(0, 16)) { const g = await D.gamelog(e.path, r.id).catch(() => null); const i = g?.labels.indexOf(label); if (!g || i < 0) continue;
+  const uL = parseFloat(P.line); const ros = P.roster.slice(0, 16), logs = []; for (let k = 0; k < ros.length; k += 4) logs.push(...await Promise.all(ros.slice(k, k + 4).map(r => D.gamelog(e.path, r.id).catch(() => null)))); // 4 at a time
+  for (const [ri, r] of ros.entries()) { const g = logs[ri]; const i = g?.labels.indexOf(label); if (!g || i < 0) continue;
     const v = g.rows.map(x => parseFloat(x.stats[i])).filter(x => !isNaN(x)); if (!v.length) continue; const line = isNaN(uL) ? Math.round(v.slice(0, 10).reduce((a, b) => a + b, 0) / Math.min(10, v.length) * 2) / 2 : uL;
     const h = n => v.length ? v.slice(0, n).filter(x => x > line).length / Math.min(n, v.length) : null; P.scan.rows.push({ name: r.name, pos: r.pos, line, l5: h(5), l10: h(10), l20: h(20), v10: v.slice(0, 10) }); }
   if (S.tab === 'props') render(); }

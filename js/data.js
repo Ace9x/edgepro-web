@@ -12,7 +12,7 @@ export const LEAGUES = {
   soccer: { n: 'Soccer', multi: ['eng.1', 'esp.1', 'ita.1', 'ger.1', 'fra.1', 'usa.1', 'uefa.champions', 'uefa.europa', 'mex.1'].map(l => 'soccer/' + l), poly: null },
 };
 const j = async (u, o) => { const r = await fetch(u, o); if (!r.ok) throw new Error(r.status + ' ' + u); return r.json(); };
-const ymd = d => d.toISOString().slice(0, 10).replace(/-/g, '');
+const ymd = d => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; // user's local calendar day (UTC date was a day ahead every evening in the US)
 function side(o, k) { const x = o && o[k]; return x ? { close: parseAm(x.close?.odds), open: parseAm(x.open?.odds), line: x.close?.line != null ? parseFloat(String(x.close.line).replace(/[ou]/, '')) : null, openLine: x.open?.line != null ? parseFloat(String(x.open.line).replace(/[ou]/, '')) : null } : null; }
 export function parseEvent(e, lg, path) {
   const c = e.competitions[0], H = c.competitors.find(t => t.homeAway === 'home'), A = c.competitors.find(t => t.homeAway === 'away');
