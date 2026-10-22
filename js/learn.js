@@ -6,7 +6,7 @@ const DB = 'edgepro', ST = 'grades'; let dbp;
 const db = () => dbp ||= new Promise((res, rej) => { const r = indexedDB.open(DB, 1); r.onupgradeneeded = () => r.result.createObjectStore(ST, { keyPath: 'key' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 const tx = async (mode, fn) => { const d = await db(); return new Promise((res, rej) => { const t = d.transaction(ST, mode); const out = fn(t.objectStore(ST)); t.oncomplete = () => res(out?.result ?? out); t.onerror = () => rej(t.error); }); };
 export const all = () => tx('readonly', s => s.getAll());
-const putAll = recs => tx('readwrite', s => recs.forEach(r => s.put(r)));
+export const putAll = recs => tx('readwrite', s => recs.forEach(r => s.put(r)));
 let cache = null; export const cached = () => cache || [];
 let cal = null; export const calibration = () => cal;
 export async function refresh() { cache = await all(); cal = C.calibrate(cache); return cache; }
