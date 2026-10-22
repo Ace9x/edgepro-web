@@ -44,7 +44,8 @@ export async function injuries(e) {
 // ---------- community splits (anonymous EdgePro tracked bets; no personal data) ----------
 const dev = () => localStorage.ep_dev ||= (crypto.randomUUID?.() || Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/-/g, '');
 export function reportTicket(b) { if (localStorage.ep_splitshare === '0' || !b.eventId || !['ml', 'spread', 'total'].includes(b.market)) return;
-  fetch(`${SB}/rest/v1/edgepro_tickets`, { method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal,resolution=ignore-duplicates' }, body: JSON.stringify({ device: dev(), event_id: String(b.eventId), market: b.market, side: b.side, stake: Math.min(1000, Math.max(0.01, +b.stake || 1)) }) }).catch(() => {}); }
+  const sent = JSON.parse(localStorage.ep_splitsent || '[]'), k = b.eventId + '|' + b.market; if (sent.includes(k)) return; localStorage.ep_splitsent = JSON.stringify([...sent, k].slice(-500));
+  fetch(`${SB}/rest/v1/edgepro_tickets`, { method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ device: dev(), event_id: String(b.eventId), market: b.market, side: b.side, stake: Math.min(1000, Math.max(0.01, +b.stake || 1)) }) }).catch(() => {}); }
 export async function splits(ids) { if (!ids.length) return {}; const r = await fetch(`${SB}/rest/v1/rpc/edgepro_splits`, { method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) }); if (!r.ok) throw new Error(r.status);
   const o = {}; for (const x of await r.json()) { const m = ((o[x.event_id] ||= {})[x.market] ||= {}); m[x.side] = { t: +x.tickets, m: +x.money }; } return o; }
 // ---------- bet import ----------
