@@ -27,7 +27,7 @@ export async function pull(feed, key, sources, { retries = 2, cache = true, time
         const ms = performance.now() - t0; st.tried.push({ source: s.name, ok: true, ms }); log(feed, s.name, true, ms, null, i > 0);
         Object.assign(st, { ok: true, source: s.name, at: Date.now(), failSince: null, failover: i > 0, cached: false }); if (cache) save(key, v); return { v, source: s.name, at: Date.now(), cached: false, failover: i > 0 };
       } catch (e) { const ms = performance.now() - t0; st.tried.push({ source: s.name, ok: false, ms, err: e.message }); log(feed, s.name, false, ms, e.message, i > 0);
-        if (/^4\d\d /.test(e.message) && !/^429/.test(e.message)) break; // a 4xx won't fix itself: move to the next source
+        if ((/^4\d\d /.test(e.message) && !/^429/.test(e.message)) || /^empty/.test(e.message)) break; // a 4xx won't fix itself: move to the next source
         if (a < retries) await sleep(400 * 3 ** a); } } }
   st.ok = false; st.failSince ||= Date.now();
   const lg = cache && lastGood(key); if (lg) { Object.assign(st, { source: 'last good pull', cached: true, at: lg.at }); return { v: lg.v, source: 'cache', at: lg.at, cached: true }; }

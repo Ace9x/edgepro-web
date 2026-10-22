@@ -43,13 +43,17 @@ const polyCache = {};
 export async function polyEvents(lg) {
   const tag = LEAGUES[lg].poly; if (!tag) return [];
   if (polyCache[tag] && Date.now() - polyCache[tag].t < 60000) return polyCache[tag].v;
-  const r = await F.pull('Polymarket', 'poly:' + tag, [{ name: 'Polymarket Gamma API', run: () => j(`https://gamma-api.polymarket.com/events?tag_slug=${tag}&closed=false&limit=300`), ok: Array.isArray }, { name: 'Polymarket Gamma API (series)', run: () => j(`https://gamma-api.polymarket.com/events?tag_slug=${tag}&active=true&closed=false&limit=200&order=startDate`), ok: Array.isArray }]);
+  const r = await F.pull('Polymarket', 'poly:' + tag, [{ name: 'Polymarket Gamma API (games)', run: () => polyGames(tag), ok: v => Array.isArray(v) && v.length > 0 }, { name: 'Polymarket Gamma API (league tag)', run: () => j(`https://gamma-api.polymarket.com/events?tag_slug=${tag}&closed=false&limit=100&order=startDate&ascending=false`), ok: Array.isArray }]);
   const v = r.v; v.fetchedAt = r.at; polyCache[tag] = { t: Date.now(), v }; return v;
 }
+// game events live under the "games" tag; the league tag alone returns mostly futures (API caps at 100 per page)
+async function polyGames(tag) { const iso = d => new Date(d).toISOString().slice(0, 19) + 'Z', out = [];
+  for (let off = 0; off < 600; off += 100) { const pg = await j(`https://gamma-api.polymarket.com/events?tag_slug=games&closed=false&limit=100&offset=${off}&end_date_min=${iso(Date.now() - 864e5)}&end_date_max=${iso(Date.now() + 5 * 864e5)}`);
+    out.push(...pg.filter(x => x.slug?.startsWith(tag + '-'))); if (pg.length < 100) break; } return out; }
 export function matchPoly(ev, list) {
-  const d = new Date(ev.start).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const ds = [0, 1, -1].map(k => new Date(new Date(ev.start).getTime() + k * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })), endsD = sl => ds.some(d => sl.endsWith(d));
   const hn = ev.home.name.toLowerCase(), an = ev.away.name.toLowerCase();
-  const pe = list.find(p => p.slug.endsWith(d) && p.title.toLowerCase().includes(hn) && p.title.toLowerCase().includes(an)) || list.find(p => /-\d{4}-\d\d-\d\d$/.test(p.slug) && p.slug.endsWith(d) && p.slug.includes(ev.home.abbr.toLowerCase()) && p.slug.includes(ev.away.abbr.toLowerCase()));
+  const pe = list.find(p => endsD(p.slug) && p.title.toLowerCase().includes(hn) && p.title.toLowerCase().includes(an)) || list.find(p => /-\d{4}-\d\d-\d\d$/.test(p.slug) && endsD(p.slug) && p.slug.includes(ev.home.abbr.toLowerCase()) && p.slug.includes(ev.away.abbr.toLowerCase()));
   if (!pe) return null;
   const out = { slug: pe.slug, url: 'https://polymarket.com/event/' + pe.slug, volume: pe.volume, totals: [] };
   for (const m of pe.markets || []) {

@@ -22,7 +22,7 @@ let X; // app context
 const rr = () => X.render();
 
 // ---------- navigation ----------
-const MAIN = ['scores', 'odds', 'bets', 'record'];
+const MAIN = ['today', 'scores', 'props', 'record'];
 export function nav(S) {
   document.querySelectorAll('#side button,#tabs button[data-t],#more button[data-t]').forEach(b => { const on = b.dataset.t === S.tab; b.classList.toggle('on', on); b.toggleAttribute('aria-current', on); });
   const mb = $('#moreBtn'); mb?.classList.toggle('on', !MAIN.includes(S.tab));
@@ -30,7 +30,7 @@ export function nav(S) {
   if (b && ind) requestAnimationFrame(() => (ind.style.transform = `translateX(${b.offsetLeft + b.offsetWidth / 2 - 12}px)`));
   const me = $('#meBtn'); if (me) me.innerHTML = prof?.avatar_url ? `<img src="${esc(prof.avatar_url)}" alt="">` : ic('user');
   queueMicrotask(flash);
-  document.title = ({ scores: 'Scores', odds: 'Odds & +EV', desk: 'Research Desk', props: 'Props', trends: 'Trends', ask: 'Ask', bets: 'My bets', ledger: 'Ledger', record: 'Record', community: 'People', tools: 'Tools', limits: 'Limits' }[S.tab] || 'EdgePro') + ' · EdgePro';
+  document.title = ({ today: 'Today', scores: 'Games', odds: 'Odds & +EV', desk: 'Research Desk', props: 'Props', trends: 'Trends', ask: 'Ask', bets: 'My bets', ledger: 'Ledger', record: 'Record', community: 'People', tools: 'Tools', limits: 'Limits' }[S.tab] || 'EdgePro') + ' · EdgePro';
 }
 export const closeMore = () => $('#more')?.classList.add('hide');
 // price flash: compare each [data-px] cell with its last value
@@ -131,7 +131,7 @@ function ledgerView() { if (!ledS.data) { Lg.load().then(d => { ledS.data = d; r
   ${sec.length > 1 ? `<div class="src">Best bet type so far: <b>${esc(sec[0].k)}</b> (${sg(sec[0].roi)}% on ${sec[0].n}) · weakest: <b>${esc(sec[sec.length - 1].k)}</b> (${sg(sec[sec.length - 1].roi)}% on ${sec[sec.length - 1].n})</div>` : ''}</div>` : `<div class="card">${empty('ledger', 'Nothing graded yet', 'Picks show up here once they settle.')}</div>`}
   ${heat(rows)}${t('By sport', r => r.sport)}${t('By section / bet type', r => r.section)}${t('By price source', Lg.priceBucket)}
   <div class="card"><div class="card-h"><b>Every pick</b><span class="small muted">${shown.length} rows · wins and losses · unchanged since logged</span></div><label class="row small" style="align-items:center;margin:0 0 8px"><input type="checkbox" id="ledV" ${ledS.voids ? 'checked' : ''} style="min-height:20px;width:20px"> Show voided / unverified rows (struck through, never deleted)</label><div class="tbl" style="max-height:520px;overflow:auto"><table><tr><th>Date</th><th>Pick</th><th>Grade</th><th class="n">Price</th><th>Price source</th><th>Close</th>${ledS.book === 'desk' ? '<th class="n">CLV</th>' : ''}<th>Result</th></tr>
-  ${shown.slice().reverse().map(r => `<tr${/void|unverified/i.test(r.raw || '') ? ' style="text-decoration:line-through;opacity:.6"' : ''}><td>${esc(fmtD(r.date + 'T12:00'))}</td><td>${esc(r.pick)}<div class="muted small">${esc(r.sport)} · ${esc(r.section)}</div></td><td>${esc(r.grade || '')}</td><td class="n">${am(r.price)}</td><td><span class="tag ${/assum/.test(r.priceSrc) ? 'warn' : ''}">${esc(/assum/.test(r.priceSrc) ? 'assumed −110' : r.priceSrc.length > 22 ? r.priceSrc.slice(0, 22) + '…' : r.priceSrc)}</span></td><td class="small">${r.close != null ? esc(typeof r.close === 'number' ? am(r.close) : r.close) : '<span class="muted">not logged</span>'}</td>${ledS.book === 'desk' ? `<td class="n">${r.clv == null ? '' : sg(r.clv, 2)}</td>` : ''}<td>${r.result ? `<span class="tag ${r.result === 'win' ? 'good' : r.result === 'loss' ? 'bad' : ''}">${r.result === 'win' ? '▲ W' : r.result === 'loss' ? '▼ L' : 'P'}</span>` : `<span class="muted small">${esc(r.raw || 'open')}</span>`}</td></tr>`).join('')}</table></div>
+  ${shown.slice().reverse().map(r => `<tr${/void|unverified/i.test(r.raw || '') ? ' style="text-decoration:line-through;opacity:.6"' : ''}><td>${esc(fmtD(r.date + 'T12:00'))}</td><td>${esc(r.pick)}<div class="muted small">${esc(r.sport)} · ${esc(r.section)}</div></td><td>${ledChip(r.grade)}</td><td class="n">${am(r.price)}</td><td>${/assum/.test(r.priceSrc) ? '<span class="pchip assumed">Assumed −110</span>' : `<span class="pchip real" title="${esc(r.priceSrc)}">Real · ${esc(r.priceSrc.split(/[ (]/)[0])}</span>`}</td><td class="small">${r.close != null ? esc(typeof r.close === 'number' ? am(r.close) : r.close) : '<span class="muted">not logged</span>'}</td>${ledS.book === 'desk' ? `<td class="n">${r.clv == null ? '' : sg(r.clv, 2)}</td>` : ''}<td>${r.result ? `<span class="tag ${r.result === 'win' ? 'good' : r.result === 'loss' ? 'bad' : ''}">${r.result === 'win' ? '▲ W' : r.result === 'loss' ? '▼ L' : 'P'}</span>` : `<span class="muted small">${esc(r.raw || 'open')}</span>`}</td></tr>`).join('')}</table></div>
   <div class="src">${ledS.book === 'grok' ? 'Source: Grok record (Oct 1–20), audited against ESPN finals. "Assumed −110" rows had no quoted or sourced price.' : 'Source: Desk plays log. SIT and Pass rows excluded. CLV is vs the logged closing consensus when one was captured.'}</div></div>
   <div class="src" style="text-align:center;margin:16px 0">Research only — past results don't predict future results. Units are flat 1u per pick; no dollar amounts. 21+ · <span data-help>${helpLine()}</span></div>
   <div class="card"><div class="card-h"><b>Row validator</b><span class="small muted">check a card before it goes out</span></div><p class="small muted" style="margin-top:0">One row per line: <code>Section | pick | line | price | start time</code>. Catches missing lines, juice worse than −230, both sides of one prop, wrong section, duplicates, started games and “~”/“?” rows.</p>
@@ -149,13 +149,15 @@ function trendsView() { const S = X.S; const evs = S.events.filter(e => e.state 
   if (trS.busy) return X.head() + `<h1 style="margin-top:8px">Trends</h1>` + pick + skel(2);
   if (trS.err) return X.head() + pick + `<div class="card">${empty('wifi-off', 'Couldn\'t load team history', 'ESPN didn\'t answer. Try again.', '<button class="btn" data-act="trretry">Retry</button>')}</div>`;
   const d = trS.data; if (!d) return X.head() + pick;
-  const gl = e.odds?.total.line ?? null; const pname = per[0];
-  const row = (label, f, line) => { const a = Tr.rate(d.away, f, line), h = Tr.rate(d.home, f, line); const cell = x => x ? `${x.avg}${line != null ? ` <span class="muted small">· ${x.over}/${x.n} over</span>` : ''}` : '—';
+  const gl = e.odds?.total.line ?? null; const pname = per[0]; const trBadges = [];
+  const row = (label, f, line) => { const a = Tr.rate(d.away, f, line), h = Tr.rate(d.home, f, line); const cell = x => !x ? '<span class="muted small" title="No completed games in ESPN box scores">no games</span>' : x.n < 5 ? `<span class="muted small" title="Trends under 5 games are hidden">n=${x.n} · hidden</span>` : `${x.avg}${line != null ? ` <span class="muted small">· ${x.over}/${x.n} over</span>` : ''}`;
+    if (line != null) [['away', a], ['home', h]].forEach(([sd, r]) => ['l10', 'l5'].forEach(k => { const x = r[k]; if (x && x.n >= 5 && !trBadges.some(b => b.sd === sd && b.label === label)) { const o = x.over / x.n; if (o >= 0.7 || o <= 0.3) trBadges.push({ sd, label, txt: `${e[sd].abbr} ${o >= 0.7 ? 'Over' : 'Under'} ${line} ${label.toLowerCase()} ${o >= 0.7 ? x.over : x.n - x.over}/${x.n}` }); } }));
     return `<tr><td>${label}${line != null ? ` <span class="muted small">vs ${line}</span>` : ''}</td><td class="n">${cell(a.l5)}</td><td class="n">${cell(a.l10)}</td><td class="n">${cell(h.l5)}</td><td class="n">${cell(h.l10)}</td></tr>`; };
   const nr = lg === 'mlb' ? row('No run 1st inning (rate)', g => (g.p1f == null ? null : g.p1f + g.p1a === 0 ? 1 : 0), null) : '';
-  return X.head() + `<h1 style="margin-top:8px">Trends</h1>` + pick + `<div class="card fade-in"><div class="card-h"><b>${esc(e.away.full || e.away.name)} @ ${esc(e.home.full || e.home.name)}</b></div><div class="tbl"><table><tr><th>Average per game</th><th class="n">${esc(e.away.abbr)} L5</th><th class="n">${esc(e.away.abbr)} L10</th><th class="n">${esc(e.home.abbr)} L5</th><th class="n">${esc(e.home.abbr)} L10</th></tr>
-  ${row('Game total', g => g.pf + g.pa, gl)}${row('Team total (scored)', g => g.pf, null)}${row('Allowed', g => g.pa, null)}${row(`${pname} total`, g => (g.p1f == null ? null : g.p1f + g.p1a), null)}${row(`${pname} team total`, g => g.p1f ?? null, null)}${nr}</table></div>
-  <div class="src">Game-total over counts use tonight's ESPN line${gl == null ? ' (none posted yet)' : ` (${gl})`}. ${nr ? 'No-run rate: 1 = neither team scored in the 1st. ' : ''}Player prop trends: use <button class="lnk" data-t="props">Props</button> or <button class="lnk" data-t="ask">Ask</button>.</div></div>`; }
+  const tbl = `${row('Game total', g => g.pf + g.pa, gl)}${row('Team total (scored)', g => g.pf, null)}${row('Allowed', g => g.pa, null)}${row(`${pname} total`, g => (g.p1f == null ? null : g.p1f + g.p1a), null)}${row(`${pname} team total`, g => g.p1f ?? null, null)}${nr}`;
+  return X.head() + `<h1 style="margin-top:8px">Trends</h1>` + pick + `<div class="card fade-in"><div class="card-h"><b>${esc(e.away.full || e.away.name)} @ ${esc(e.home.full || e.home.name)}</b></div>${trBadges.length ? `<div class="ask-ex">${trBadges.map(b => `<span class="tbadge">${esc(b.txt)}</span>`).join('')}</div>` : `<div class="small muted">No trend at 70%+ over 5+ games against tonight's line.</div>`}<div class="tbl"><table><tr><th>Average per game</th><th class="n">${esc(e.away.abbr)} L5</th><th class="n">${esc(e.away.abbr)} L10</th><th class="n">${esc(e.home.abbr)} L5</th><th class="n">${esc(e.home.abbr)} L10</th></tr>
+  ${tbl}</table></div>
+  <div class="src">From ESPN box scores (linescores) of each team's completed games. Rows with fewer than 5 games are hidden. Game-total over counts use tonight's line${gl == null ? ' (none posted yet)' : ` (${gl})`}. ${nr ? 'No-run rate: 1 = neither team scored in the 1st. ' : ''}Player prop trends: use <button class="lnk" data-t="props">Props</button> or <button class="lnk" data-t="ask">Ask</button>.</div></div>`; }
 async function loadTrends(id) { const e = X.S.events.find(x => x.id === id); if (!e) return; trS.ev = id; trS.busy = true; trS.err = null; trS.data = null; rr();
   try { const p = e.path; const [a, h] = await Promise.all([Tr.teamGames(p, e.away.id, e.league), Tr.teamGames(p, e.home.id, e.league)]); if (trS.ev === id) trS.data = { away: a, home: h }; } catch (x) { trS.err = x.message; } trS.busy = false; rr(); }
 
@@ -314,7 +316,7 @@ export function views(ctx) { X = ctx; const orig = { desk: ctx.views.desk, odds:
     if (ev.target.id === 'pAv' && ev.target.files[0]) { const m = $('#pAvMsg'); m.textContent = 'Uploading…'; try { pS.avatar = await So.uploadAvatar(ev.target.files[0]); m.innerHTML = '<span class="mv-up">✓ Photo ready — save to apply</span>'; document.querySelector('.prof-h .avatar').innerHTML = `<img src="${pS.avatar}" alt="">`; } catch (e) { m.innerHTML = `<span class="mv-dn">${esc(e.message)}</span>`; } } });
   let tmr; document.addEventListener('input', ev => { if (ev.target.id !== 'pU') return; clearTimeout(tmr); const u = ev.target.value.trim().toLowerCase(); const m = $('#pUMsg');
     pS.avail = null; if (!So.USER_RE.test(u)) { m.innerHTML = 'Lowercase letters, numbers and _ only (3–20).'; return; } m.textContent = 'Checking…'; tmr = setTimeout(async () => { const ok = await So.available(u).catch(() => null); pS.avail = ok; if ($('#pU')?.value.trim().toLowerCase() === u) $('#pUMsg').innerHTML = ok ? '<span class="mv-up">✓ Available</span>' : ok === false ? '<span class="mv-dn">✗ Taken</span>' : 'Couldn\'t check right now.'; }, 350); });
-  return { ask: askView, ledger: ledgerView, trends: trendsView, limits: limitsView, community: peopleView,
+  return { today: todayView, ask: askView, ledger: ledgerView, trends: trendsView, limits: limitsView, community: peopleView,
     desk: () => { const h = orig.desk(); if (!X.S.events.length) return h; const i = h.indexOf('<div class="card">'); return i < 0 ? h : h.slice(0, i) + deskExtras() + `<div class="card">${gradeLegend()}${calMeter()}</div>` + h.slice(i).replace(/data-act="share"([^>]*)>Share pick/g, 'data-act="share"$1>Post pick'); },
     odds: () => { const h = orig.odds(); return X.S.events.length ? h + staleCard() + oddsExtras() : h; },
     bets: () => syncNudge() + orig.bets(),
@@ -340,7 +342,11 @@ function recordSeed() { if (!ledS.data) { Lg.load().then(d => { ledS.data = d; i
   const box = (t, rows, note) => { const g = Lg.roi(rows.filter(r => !/void|unverified/i.test(r.raw || '')))[0]; if (!g) return ''; const w = Lg.wilson(g.w, g.w + g.l);
     return `<div class="stat"><span class="cap">${t}</span><b class="num">${g.w}–${g.l}–${g.p}</b><small>${pc(g.hit)} hit (95% CI ${w ? pc(w[0]) + '–' + pc(w[1]) : '—'}) · ${sg(g.roi)}% ROI · n=${g.n}${g.n < 50 ? ' · too few picks' : ''}${note ? ' · ' + note : ''}</small></div>`; };
   const G = ledS.data.grok, q = G.filter(r => !/assum/.test(r.priceSrc));
-  return `<div class="card"><div class="card-h"><b>Logged records</b><button class="btn sm" data-t="ledger">Open ledger</button></div><div class="stat-row">${box("Grok · all logged", G)}${box('Grok · quoted/sourced prices only', q)}${box('Desk plays', ledS.data.desk)}</div><div class="src">Kept separate, never blended. Grok rows with no price use an assumed −110 (marked in the ledger). Flat 1 unit per pick. As of Oct 20 settlements.</div></div>`; }
+  const D = ledS.data.desk, valid = r => !/void|unverified/i.test(r.raw || ''), keys = [...new Set([...G, ...D].filter(valid).map(r => r.sport + ' · ' + r.section))].sort();
+  const cell = rows => { const g = Lg.roi(rows)[0]; return g ? `${g.w}–${g.l}–${g.p} <span class="muted small">${sg(g.roi)}% · n=${g.n}</span>` : '<span class="muted small">—</span>'; };
+  const real = G.filter(valid).filter(r => !/assum/.test(r.priceSrc)), ass = G.filter(valid).filter(r => /assum/.test(r.priceSrc)), gr = Lg.roi(real)[0], ga = Lg.roi(G.filter(valid))[0];
+  const split = `<div class="card"><div class="card-h"><b>By sport &amp; section</b><span class="small muted">Grok and Desk side by side · never blended</span></div>${gr && ga ? `<p class="small" style="margin-top:0">Grok ROI with <span class="pchip real">Real</span> prices only: <b>${sg(gr.roi)}%</b> on ${gr.n} · all rows incl. <span class="pchip assumed">Assumed −110</span> (${ass.length}): <b>${sg(ga.roi)}%</b> on ${ga.n}.</p>` : ''}<div class="tbl" style="max-height:420px;overflow:auto"><table><tr><th>Sport · section</th><th class="n">Grok</th><th class="n">Desk</th></tr>${keys.map(k => `<tr><td>${esc(k)}</td><td class="n">${cell(G.filter(valid).filter(r => r.sport + ' · ' + r.section === k))}</td><td class="n">${cell(D.filter(valid).filter(r => r.sport + ' · ' + r.section === k))}</td></tr>`).join('')}</table></div><div class="src">Rows are read-only, loaded from GROK_RECORD.csv (with its price_source column) and the desk plays log. Voided or after-start rows stay in the ledger struck through and are not counted.</div></div>`;
+  return split + `<div class="card"><div class="card-h"><b>Logged records</b><button class="btn sm" data-t="ledger">Open ledger</button></div><div class="stat-row">${box("Grok · all logged", G)}${box('Grok · quoted/sourced prices only', q)}${box('Desk plays', ledS.data.desk)}</div><div class="src">Kept separate, never blended. Grok rows with no price use an assumed −110 (marked in the ledger). Flat 1 unit per pick. As of Oct 20 settlements.</div></div>`; }
 
 // ---------- consent (first launch + sign-up), export, delete ----------
 export const TERMS_V = '2026-10-22';
@@ -471,3 +477,52 @@ export async function fillOdds(events) { const miss = events.filter(e => e.state
 
 /** multi-book prices for every pre-game event (one cached Odds API call per sport) — feeds the 2nd source on Desk grades */
 export async function loadBooks(S) { S.books ||= {}; const pre = S.events.filter(e => e.state === 'pre'); for (const e of pre.slice(0, 40)) { if (S.books[e.id]) continue; const bk = await X.I.books(e).catch(() => null); if (bk?.rows) S.books[e.id] = bk.rows; } }
+
+// ================= Desk design pass (desk_design.md) =================
+/** odds age for a game, from the feed's real fetched-at time */
+const oddsAt = e => e.odds?.fetchedAt ? new Date(e.odds.fetchedAt).getTime() : X.S.fetched ? +X.S.fetched : null;
+export function fresh(e) { const t = oddsAt(e); const m = t ? (Date.now() - t) / 60000 : null; return { t, m, warn: m != null && m > 30, stale: m != null && m > 90 }; }
+/** grade chip: letter + model % + plain label; greyed when a gate blocks it */
+export function gradeChip(g, { blocked = null } = {}) { const L = g.grade, lab = blocked ? blocked : L === 'D' ? 'Pass' : L === 'C' ? 'Lean' : g.official ? 'Official' : 'Not official';
+  return `<span class="gchip g${L}${blocked ? ' blocked' : ''}" title="${esc(blocked ? 'Grade hidden: ' + blocked : 'Model ' + (g.conf == null ? 'n/a' : (g.conf * 100).toFixed(1) + '%'))}"><b>${blocked ? '–' : L}</b>${!blocked && g.conf != null ? `<span class="num">${Math.round(g.conf * 100)}%</span>` : ''}<span>${esc(lab)}</span></span>`; }
+/** Polymarket vs sportsbook in cents and implied % */
+export function crossRow(m) { const pm = m.quotes.find(q => /^Polymarket/.test(q.book)), bk = m.quotes[0]; if (!bk) return '';
+  const bi = C.amToProb(bk.price); if (!pm) return `<div class="xrow small"><span>${esc(bk.book)} ${am(bk.price)} = ${pc(bi)}</span><span class="muted">no Polymarket market for this line</span></div>`;
+  const gap = (pm.prob - bi) * 100; return `<div class="xrow small"><span>Polymarket <b class="num">${Math.round(pm.prob * 100)}¢</b> = ${pc(pm.prob)}</span><span>${esc(bk.book)} <b class="num">${am(bk.price)}</b> = ${pc(bi)}</span><span class="num ${gap < 0 ? 'mv-up' : 'mv-dn'}" title="Book % includes its vig">gap ${gap > 0 ? '+' : ''}${gap.toFixed(1)} pts</span></div>`; }
+/** line-movement sparkline from this device's saved snapshots (real pulls only) */
+export function spark(e, key = 'mh', w = 120, h = 32) { const a = (LS.get('hist', {})[e.id] || []).filter(x => x[key] != null); if (a.length < 2) return '';
+  const v = a.map(x => key === 'mh' || key === 'ma' ? C.amToProb(x[key]) : x[key]), lo = Math.min(...v), hi = Math.max(...v), r = hi - lo || 1, t0 = a[0].t, t1 = a[a.length - 1].t || t0 + 1;
+  const pts = a.map((x, i) => `${(((x.t - t0) / (t1 - t0 || 1)) * (w - 4) + 2).toFixed(1)},${(h - 3 - ((v[i] - lo) / r) * (h - 6)).toFixed(1)}`).join(' ');
+  const first = a[0][key], last = a[a.length - 1][key];
+  return `<span class="spark" role="img" aria-label="Line moved from ${esc(String(first))} to ${esc(String(last))} over ${a.length} pulls"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="#A3ACB8" stroke-width="1.5"/><circle cx="${pts.split(' ').pop().split(',')[0]}" cy="${pts.split(' ').pop().split(',')[1]}" r="3" fill="#5EEAD4"/></svg><span class="small muted num">${key === 'tot' || key === 'sp' ? first + ' → ' + last : am(first) + ' → ' + am(last)}</span></span>`; }
+/** one pick card: grade chip, why-this-grade, cross-market row, freshness + injury gates */
+export function pickCard(m, g) { const e = m.e, f = fresh(e), gt = gateS[e.id], gateOpen = !gt?.ok;
+  const blocked = f.stale ? 'Stale, refreshing' : null;
+  const srcs = m.src.map(s => `<span class="pill">${esc(s.name)} ${pc(s.prob)}</span>`).join('');
+  const fails = g.why.filter(w => w.startsWith('✗ ')).map(w => w.slice(2));
+  const reasons = g.why.filter(w => !w.startsWith('✗ ') && !/^✓|^Not official/.test(w)).slice(0, 5);
+  return `<div class="card pick${blocked ? ' greyed' : ''}" data-ev="${e.id}"><div class="row" style="justify-content:space-between;align-items:center;gap:12px">
+  <div style="min-width:0">${gradeChip(g, { blocked })} <b>${esc(m.label)}</b> <span class="num">${am(m.price)}</span><div class="small muted">${esc(e.away.abbr)} @ ${esc(e.home.abbr)} · ${tm2(e.start)} · <span class="${f.warn ? 'warn-t' : ''}">Odds ${f.t ? fmtD(f.t, { hour: 'numeric', minute: '2-digit' }) + ' · ' + Math.round(f.m) + 'm' : '—'}</span>${gt?.espnAt ? ` · Injuries ${fmtD(gt.espnAt, { hour: 'numeric', minute: '2-digit' })}` : ''}</div></div>
+  ${g.status === 'SIT' ? '<span class="tag warn">SIT</span>' : gateOpen && g.official === false && !fails.length ? '' : ''}</div>
+  ${crossRow(m)}${spark(e, m.market === 'total' ? 'tot' : m.market === 'spread' ? 'sp' : m.side === 'home' ? 'mh' : 'ma')}
+  ${gateOpen ? `<div class="small warn-t">${ic('warn')} ${esc(gt?.why || 'Injury & lineup check not run yet')} — grade can't be Official.</div>` : ''}
+  <details class="whyg"><summary>Why this grade</summary><ul class="why">${reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul><div class="pills">${srcs}</div>
+  ${fails.length ? `<div class="small"><b>What would change it</b><ul class="why">${fails.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '<div class="small mv-up">All Official checks pass.</div>'}<div class="src">Research only · <a href="terms.html">Not advice</a></div></details></div>`; }
+const tm2 = t => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+// ---------- Today: best per section, nothing-to-show said plainly ----------
+const SECTIONS = [['ml', 'Moneyline'], ['spread', 'Spread'], ['total', 'Game total']];
+const UNPRICED = ['1st half', '1st quarter / period / inning', 'Team totals', 'Player props'];
+export function todayView() { const S = X.S; if (!S.events.length) return X.head() + states(S, X.D, () => '');
+  const pre = S.events.filter(e => e.state === 'pre'); pre.slice(0, 6).forEach(loadGateFor);
+  const gs = pre.flatMap(X.markets).map(m => { const g = X.grade(m); return { m, g }; });
+  const bestOf = k => gs.filter(x => x.m.market === k && !fresh(x.m.e).stale && x.g.status !== 'SIT' && ['A', 'B'].includes(x.g.grade)).sort((a, b) => (b.g.official - a.g.official) || (b.g.conf - a.g.conf))[0];
+  const secs = SECTIONS.map(([k, n]) => { const b = bestOf(k); return `<section class="sec"><h3>${n}</h3>${b ? pickCard(b.m, b.g) : `<div class="card none"><p class="small muted" style="margin:0">Nothing graded B or better in ${n.toLowerCase()} today. That's a valid result.</p></div>`}</section>`; }).join('');
+  const un = `<div class="card none"><p class="small muted" style="margin:0"><b>${UNPRICED.join(', ')}</b>: no free live price feed covers these, so they aren't graded here. Hit rates and trends for them are in <button class="lnk" data-t="props">Props</button> and <button class="lnk" data-t="trends">Trends</button>.</p></div>`;
+  const cards = S.events.slice(0, 30).map(e => { const best = gs.filter(x => x.m.e === e).sort((a, b) => (b.g.conf || 0) - (a.g.conf || 0))[0], f = fresh(e), gt = gateS[e.id];
+    return `<button class="gcard" data-act="desk" data-id="${e.id}"><span class="gc-t"><b>${esc(e.away.abbr)} @ ${esc(e.home.abbr)}</b><span class="small muted">${e.state === 'pre' ? tm2(e.start) : esc(e.detail)}</span></span>${best ? gradeChip(best.g, { blocked: f.stale ? 'Stale' : null }) : '<span class="small muted">no grade</span>'}<span class="dot ${f.stale ? 'bad' : f.warn ? 'warn' : 'ok'}" title="${f.t ? 'Odds ' + Math.round(f.m) + ' min old' : 'No odds'}" aria-label="${f.stale ? 'stale odds' : 'fresh odds'}"></span>${gt?.tried ? `<span class="small ${gt.ok ? 'mv-up' : 'warn-t'}">${gt.ok ? '✓ injuries' : 'gate open'}</span>` : ''}${spark(e, 'mh', 64, 20)}</button>`; }).join('');
+  return X.head() + `<h1 style="margin-top:8px">Today</h1><p class="muted" style="margin-top:0">The best graded pick in each section, from live prices. Research only.</p>${secs}${un}<h3>Games</h3><div class="glist">${cards}</div>`; }
+
+/** historical record labels → A–D chip (no C+); the original label stays in the tooltip */
+export const normGrade = g => { const m = String(g || '').toUpperCase().match(/\b([ABCD])[+-]?/); return m ? m[1] : null; };
+const ledChip = g => { const n = normGrade(g); return n ? `<span class="grade g${n}" title="Logged as: ${esc(g)}">${n}</span>` : `<span class="muted small" title="Logged as: ${esc(g || '')}">ungraded</span>`; };
