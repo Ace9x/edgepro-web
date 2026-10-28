@@ -14,9 +14,11 @@ const NFL_K = ["completions", "attempts", "passing_yards", "passing_tds", "passi
 async function nfl(season: number) {
   const r = await fetch(`https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_${season}.csv`, { headers: UA }); if (!r.ok) throw new Error("nflverse " + r.status);
   const [h, ...rows] = csv(await r.text()); const ix = (k: string) => h.indexOf(k);
+  const gr = await fetch("https://github.com/nflverse/nfldata/raw/master/data/games.csv", { headers: UA }); const day: Record<string, string> = {};
+  if (gr.ok) { const [gh, ...g] = csv(await gr.text()); const gi = gh.indexOf("game_id"), gd = gh.indexOf("gameday"); for (const x of g) if (x[gi]) day[x[gi]] = x[gd]; }
   return rows.filter(x => x.length > 10 && x[ix("season_type")] !== "").map(x => { const st: Record<string, number> = {}; for (const k of NFL_K) { const v = x[ix(k)]; if (v !== "" && v != null && ix(k) >= 0) st[k] = +v; }
     const gid = x[ix("game_id")], team = x[ix("team")]; return { league: "nfl", player_id: x[ix("player_id")], game_id: gid, player: x[ix("player_display_name")], pos: x[ix("position")], team, opp: x[ix("opponent_team")],
-      home: gid ? gid.endsWith("_" + team) : null, game_date: null, season: +x[ix("season")], week: +x[ix("week")], stats: st, src: "nflverse" }; }); }
+      home: gid ? gid.endsWith("_" + team) : null, game_date: day[gid] || null, season: +x[ix("season")], week: +x[ix("week")], stats: st, src: "nflverse" }; }); }
 async function nhl(season: number) { const sid = `${season}${season + 1}`, out: Record<string, unknown>[] = [];
   for (const kind of ["skater", "goalie"]) { const r = await fetch(`https://api.nhle.com/stats/rest/en/${kind}/summary?isAggregate=false&isGame=true&limit=-1&cayenneExp=seasonId=${sid}%20and%20gameTypeId=2`, { headers: UA }); if (!r.ok) throw new Error("NHL stats " + r.status);
     for (const x of (await r.json()).data) out.push({ league: "nhl", player_id: String(x.playerId), game_id: String(x.gameId), player: x.skaterFullName || x.goalieFullName, pos: kind === "goalie" ? "G" : x.positionCode, team: x.teamAbbrev, opp: x.opponentTeamAbbrev, home: x.homeRoad === "H", game_date: x.gameDate, season, week: null,

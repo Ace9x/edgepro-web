@@ -1,3 +1,4 @@
+import { tableLog } from './data.js';
 // "Ask" — natural-language stat search answered only from free ESPN endpoints (StatMuse has no public API; nothing is scraped).
 const W = 'https://site.web.api.espn.com/apis', S = 'https://site.api.espn.com/apis/site/v2/sports';
 export const LG = { 46: ['basketball/nba', 'NBA'], 28: ['football/nfl', 'NFL'], 10: ['baseball/mlb', 'MLB'], 90: ['hockey/nhl', 'NHL'], 59: ['basketball/wnba', 'WNBA'], 23: ['football/college-football', 'NCAAF'], 41: ['basketball/mens-college-basketball', 'NCAAB'] };
@@ -29,7 +30,9 @@ export async function search(name) {
   return { players: pick('player'), teams: pick('team') };
 }
 const seasonsOf = d => (d.filters?.find(f => f.name === 'season')?.options || []).map(o => o.value);
-export async function playerLog(path, id, need = 5) {
+export async function playerLog(path, id, need = 5, name) {
+  const lg = path === 'football/nfl' ? 'nfl' : path === 'hockey/nhl' ? 'nhl' : null;
+  if (lg && name) { const t = await tableLog(lg, name).catch(() => null); if (t?.rows.length >= need && Date.now() - new Date(t.rows[0].date || 0) < 9 * 864e5) return { ...t, src: t.src === 'nflverse' ? { name: 'nflverse open data (EdgePro nightly table)', url: 'https://github.com/nflverse/nflverse-data' } : { name: 'NHL stats API (EdgePro nightly table)', url: 'https://www.nhl.com/stats/' } }; }
   let d = await j(`${W}/common/v3/sports/${path}/athletes/${id}/gamelog`);
   const rows = rowsOf(d); if (rows.length < need) { const cur = d.filters?.find(f => f.name === 'season')?.value; const prev = seasonsOf(d).find(v => +v < +cur); if (prev) { const p = await j(`${W}/common/v3/sports/${path}/athletes/${id}/gamelog?season=${prev}`).catch(() => null); if (p) { rows.push(...rowsOf(p)); d.labels = d.labels?.length ? d.labels : p.labels; d.names = d.names?.length ? d.names : p.names; } } }
   return { labels: d.labels || [], names: d.names || [], rows };
@@ -69,7 +72,7 @@ async function playerAnswer(p, cands) {
   for (const hit of cands) { const res = await one(hit).catch(e => ({ error: e.message })); if (!res.error) { res.alts = cands.filter(c => c !== hit).map(c => c.name + (c.sub ? ' · ' + c.sub : '')); return res; } firstErr = firstErr || res; }
   return firstErr || { error: 'No player matched.' };
   async function one(hit) { const [path, lgName] = hit.lg;
-  const log = await playerLog(path, hit.id, p.n || 10); if (!log.rows.length) return { error: `No games logged for ${hit.name} yet.` };
+  const log = await playerLog(path, hit.id, p.n || 10, hit.name); if (!log.rows.length) return { error: `No games logged for ${hit.name} yet.` };
   let label = null, idx = -1; const want = p.stat || [log.labels.includes('PTS') ? 'PTS' : log.labels.includes('YDS') ? 'YDS' : log.labels.includes('H') ? 'H' : log.labels.includes('G') ? 'G' : log.labels[log.labels.length - 1]];
   for (const w of want) { const [lab, cat] = w.split('@'); idx = log.labels.findIndex((x, i) => x === lab && (!cat || (log.names[i] || '').toLowerCase().includes(cat))); if (idx < 0 && cat) idx = log.labels.indexOf(lab); if (idx >= 0) { label = lab; break; } }
   if (idx < 0) return { error: `${hit.name}'s ESPN game log has no "${want[0].split('@')[0]}" column. Available: ${log.labels.join(', ')}.` };
@@ -81,6 +84,6 @@ async function playerAnswer(p, cands) {
     hit: L == null ? null : { n: hitN, of: sl.length, line: L, side: p.side }, line: L,
     series: sl.slice().reverse().map(x => ({ x: x.date, v: x.v, label: `${x.at === 'vs' ? 'vs' : '@'} ${x.opp} · ${x.v}` })),
     rows: sl.map(x => [new Date(x.date).toLocaleDateString([], { month: 'short', day: 'numeric' }), `${x.at === 'vs' ? 'vs' : '@'} ${x.opp || ''}`, String(x.v)]),
-    src: { name: 'ESPN game log', url: `https://www.espn.com/${lgName.toLowerCase()}/player/gamelog/_/id/${hit.id}` } }; }
+    src: log.src?.name ? log.src : { name: 'ESPN game log', url: `https://www.espn.com/${lgName.toLowerCase()}/player/gamelog/_/id/${hit.id}` } }; }
 }
 export const EXAMPLES = ['Mitchell points last 5', 'Jets record at home', 'Aaron Judge home runs last 10', 'Celtics last 10', 'Jokic rebounds over 11.5', 'McDavid shots last 10'];

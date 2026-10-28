@@ -98,8 +98,21 @@ async function meteo(ev) {
 }
 // ---------- Player game logs (prop hit-rate history) ----------
 export const roster = async (path, teamId) => { const d = await j(`https://site.api.espn.com/apis/site/v2/sports/${path}/teams/${teamId}/roster`); const a = d.athletes || []; return (a[0]?.items ? a.flatMap(g => g.items) : a).map(x => ({ id: x.id, name: x.fullName, pos: x.position?.abbreviation })); };
-export async function gamelog(path, id) {
+// NFL (nflverse) and NHL (NHL stats API) game logs from EdgePro's nightly table; ESPN is the fallback
+const SBK = 'sb_publishable_I9N8lydmQ1h6NQD6JT-jDQ_PQkjsBAK';
+const LOGDEF = { nfl: [['CMP', 'Completions', 'completions'], ['ATT', 'Passing Attempts', 'attempts'], ['YDS', 'Passing Yards', 'passing_yards'], ['TD', 'Passing Touchdowns', 'passing_tds'], ['INT', 'Interceptions', 'passing_interceptions'], ['CAR', 'Rushing Attempts', 'carries'], ['YDS', 'Rushing Yards', 'rushing_yards'], ['TD', 'Rushing Touchdowns', 'rushing_tds'], ['REC', 'Receptions', 'receptions'], ['TGTS', 'Receiving Targets', 'targets'], ['YDS', 'Receiving Yards', 'receiving_yards'], ['TD', 'Receiving Touchdowns', 'receiving_tds']],
+  nhl: [['G', 'Goals', 'goals'], ['A', 'Assists', 'assists'], ['PTS', 'Points', 'points'], ['S', 'Shots', 'shots'], ['PPP', 'Power Play Points', 'pp_points'], ['PIM', 'Penalty Minutes', 'pim']], nhlG: [['SV', 'Saves', 'saves'], ['SA', 'Shots Against', 'shots_against'], ['GA', 'Goals Against', 'goals_against']] };
+export async function tableLog(lg, name) { if (!LOGDEF[lg] || !name) return null;
+  const u = `https://czjwiudbasqwlwvezmaz.supabase.co/rest/v1/ep_game_logs?league=eq.${lg}&player=ilike.${encodeURIComponent(name.replace(/[%*,()]/g, ''))}&order=game_date.desc.nullslast&limit=120&select=game_id,player,pos,team,opp,home,game_date,season,week,stats,src`;
+  const rows = await j(u, { headers: { apikey: SBK, Authorization: 'Bearer ' + SBK } }); if (!rows?.length) return null;
+  const def = lg === 'nhl' && rows[0].pos === 'G' ? LOGDEF.nhlG : LOGDEF[lg];
+  return { labels: def.map(d => d[0]), names: def.map(d => d[1]), src: rows[0].src, rows: rows.map(r => ({ id: r.game_id, date: r.game_date, opp: r.opp, home: r.home, season: `${r.season} Regular Season`, stats: def.map(d => r.stats[d[2]] == null ? '' : String(r.stats[d[2]])) })) }; }
+export async function gamelog(path, id, name) {
+  const lg = path === 'football/nfl' ? 'nfl' : path === 'hockey/nhl' ? 'nhl' : null;
+  let t = null; if (lg && name) { t = await tableLog(lg, name).catch(() => null); if (t?.rows.length && Date.now() - new Date(t.rows[0].date || 0) < 9 * 864e5) return t; }
+  try { const es = await espnLog(path, id); if (!t?.rows.length || (es.rows[0]?.date || '') > (t.rows[0].date || '')) return es; return t; } catch (x) { if (t?.rows.length) return t; throw x; } }
+async function espnLog(path, id) {
   const d = await j(`https://site.web.api.espn.com/apis/common/v3/sports/${path}/athletes/${id}/gamelog`);
   const rows = []; for (const st of d.seasonTypes || []) for (const c of st.categories || []) for (const e of c.events || []) { const meta = d.events?.[e.eventId]; rows.push({ id: e.eventId, date: meta?.gameDate, opp: meta?.opponent?.abbreviation, season: st.displayName, stats: e.stats }); }
-  rows.sort((a, b) => (b.date || '').localeCompare(a.date || '')); return { labels: d.labels || [], names: d.displayNames || d.labels, rows };
+  rows.sort((a, b) => (b.date || '').localeCompare(a.date || '')); return { labels: d.labels || [], names: d.displayNames || d.labels, rows, src: 'ESPN' };
 }
