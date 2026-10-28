@@ -522,7 +522,7 @@ export function pickCard(m, g) { const e = m.e, f = fresh(e), gt = gateS[e.id], 
   const blocked = f.stale ? 'Stale, refreshing' : null;
   const srcs = m.src.map(s => `<span class="pill">${esc(s.name)} ${pc(s.prob)}</span>`).join('');
   const fails = g.why.filter(w => w.startsWith('✗ ')).map(w => w.slice(2));
-  const reasons = g.why.filter(w => !w.startsWith('✗ ') && !/^✓|^Not official/.test(w)).slice(0, 5);
+  const reasons = g.why.filter(w => !w.startsWith('✗ ') && !/^✓|^Not official/.test(w)).slice(0, 8);
   return `<div class="card pick${blocked ? ' greyed' : ''}" data-ev="${e.id}"><div class="row" style="justify-content:space-between;align-items:center;gap:12px">
   <div style="min-width:0">${gradeChip(g, { blocked })} <b>${esc(m.label)}</b> <span class="num">${am(m.best?.price ?? m.price)}</span>${m.best?.book ? ` <span class="small muted">best at ${esc(m.best.book)}</span>` : ''}<div class="small muted">${esc(e.away.abbr)} @ ${esc(e.home.abbr)} · ${tm2(e.start)} · <span class="${f.warn ? 'warn-t' : ''}">Odds ${f.t ? tm2(f.t) + ' ET · ' + Math.round(f.m) + 'm' : 'no price'}</span>${gt?.espnAt ? ` · Injuries ${tm2(gt.espnAt)} ET` : ''}</div></div>
 </div>

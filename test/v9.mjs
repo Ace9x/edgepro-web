@@ -21,7 +21,7 @@ const ready = p => p.waitForFunction(() => window.EP?.events?.length && EP.fetch
   ok(tl.length === 0, 'no Polymarket/Kalshi trading links'); ok(/Data: Polymarket/.test(await p.innerText('#view')), 'Data: Polymarket credit shown');
   await p.screenshot({ path: `${OUT}/v9-odds-credit.png` }); await ctx.close(); }
 // 2 share link: own secret, still signs + verifies (server-side)
-{ const r = await fetch('https://czjwiudbasqwlwvezmaz.supabase.co/functions/v1/ep-share?t=bogus.AAAA'); const j = await r.json(); ok(r.status !== 503 && j.error && !/secret not configured/.test(j.error), `ep-share up with its own secret (bad token rejected: ${j.error})`); }
+{ const r = await fetch('https://czjwiudbasqwlwvezmaz.supabase.co/functions/v1/ep-share?t=bogus.AAAA'); const j = await r.json(); ok(r.status !== 503 && j.valid === false, `ep-share up with its own secret (bad token rejected: ${j.why})`); }
 // 3 weather NWS
 { const t = new Date(Date.now() + 864e5).toISOString().slice(0, 13) + ':00:00Z'; const r = await (await fetch(`https://czjwiudbasqwlwvezmaz.supabase.co/functions/v1/ep-wx?city=Chicago&state=Illinois&t=${t}`)).json(); ok(r.src === 'NWS (weather.gov)' && r.mph != null, `NWS weather via ep-wx: ${r.mph} mph ${r.dirTxt}, ${r.temp}°F`); }
 // 4 nightly logs + Ask
