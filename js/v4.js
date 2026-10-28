@@ -534,7 +534,7 @@ const tm2 = t => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '
 
 // ---------- Today: best per section, nothing-to-show said plainly ----------
 const SECTIONS = [['ml', 'Moneyline'], ['spread', 'Spread'], ['total', 'Game total']];
-const PSECS = ['1st half', '1st quarter', '1st period', 'First 5 innings', '1st inning', 'Team total'];
+const PSECS = ['1st half', '1st quarter', '1st period', 'First 5 innings', '1st inning', 'Team total', '2nd half', '2nd quarter', '3rd quarter', '4th quarter', '2nd period', '3rd period'];
 export function todayView() { const S = X.S; if (!S.events.length) return X.head() + states(S, X.D, () => '');
   const pre = S.events.filter(e => e.state === 'pre'); pre.slice(0, 6).forEach(loadGateFor);
   const gs = pre.flatMap(X.markets).map(m => { const g = X.grade(m); return { m, g }; });

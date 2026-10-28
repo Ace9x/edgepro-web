@@ -7,9 +7,9 @@ const SPORTS = new Set(["baseball_mlb","americanfootball_nfl","basketball_nba","
 const PROPS = /^(player_[a-z_]+|batter_[a-z_]+|pitcher_[a-z_]+)$/;
 // per-event period / team-total markets, fixed server-side so a client can't run up credits
 const EVENT_MKTS: Record<string, string> = {
-  americanfootball_nfl: "h2h_h1,totals_h1,h2h_q1,totals_q1,team_totals", americanfootball_ncaaf: "h2h_h1,totals_h1,team_totals",
-  basketball_nba: "h2h_h1,totals_h1,h2h_q1,totals_q1,team_totals", basketball_wnba: "h2h_h1,totals_h1,team_totals", basketball_ncaab: "h2h_h1,totals_h1,team_totals",
-  icehockey_nhl: "h2h_p1,totals_p1,team_totals", baseball_mlb: "h2h_1st_5_innings,totals_1st_5_innings,totals_1st_1_innings,team_totals" };
+  americanfootball_nfl: "h2h_h1,totals_h1,spreads_h1,h2h_q1,totals_q1,spreads_q1,team_totals,h2h_h2,totals_h2,spreads_h2,h2h_q2,totals_q2,h2h_q3,totals_q3,h2h_q4,totals_q4", americanfootball_ncaaf: "h2h_h1,totals_h1,spreads_h1,team_totals,h2h_h2,totals_h2,spreads_h2",
+  basketball_nba: "h2h_h1,totals_h1,spreads_h1,h2h_q1,totals_q1,spreads_q1,team_totals,h2h_h2,totals_h2,spreads_h2,h2h_q2,totals_q2,h2h_q3,totals_q3,h2h_q4,totals_q4", basketball_wnba: "h2h_h1,totals_h1,spreads_h1,team_totals", basketball_ncaab: "h2h_h1,totals_h1,spreads_h1,team_totals,h2h_h2,totals_h2,spreads_h2",
+  icehockey_nhl: "h2h_p1,totals_p1,spreads_p1,team_totals,h2h_p2,totals_p2,h2h_p3,totals_p3", baseball_mlb: "h2h_1st_5_innings,totals_1st_5_innings,spreads_1st_5_innings,totals_1st_1_innings,team_totals" };
 /** daily credit allowance = what's left this month spread over the days left (UTC), minus a 20-credit reserve */
 async function allowance(remaining: number) { const now = new Date(), end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1), days = Math.max(1, Math.ceil((end - now.getTime()) / 864e5));
   const day = now.toISOString().slice(0, 10); const { data: sp } = await db.rpc("ep_cache_get", { key: "spent:" + day, max_age: 2 * 86400 });
