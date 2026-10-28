@@ -13,4 +13,8 @@ t(!S.scan(rows.slice(0, 2)).length, 'stale: needs 3+ books');
 t(S.publicFlags(rows, null).some(x => x.side === 'home' && /Soft/.test(x.why)), 'public: shaded side flagged');
 const ps = S.publicFlags(rows, { ml: { away: { t: 30 }, home: { t: 5 } } }); t(ps.length === 1 && ps[0].side === 'away', 'public: splits ≥65%');
 t(!S.publicFlags(rows, { ml: { away: { t: 6 }, home: { t: 5 } } }).some(x => x.src === 'splits'), 'public: small split sample ignored');
+{ const g1 = C.gradePick({ sport: 'nba', market: 'ml', side: 'x', price: 150, sources: [{ name: 'DraftKings no-vig', prob: 0.47 }, { name: 'Market median (6 books)', prob: 0.47 }], gate: true });
+  t(!g1.official && g1.why.some(w => /two different source families/.test(w)), 'grade: DK no-vig + book median is one family, never Official');
+  const g2 = C.gradePick({ sport: 'nba', market: 'ml', side: 'x', price: 150, sources: [{ name: 'DraftKings no-vig', prob: 0.47 }, { name: 'Polymarket mid', prob: 0.47 }], gate: true });
+  t(!g2.why.some(w => /two different source families/.test(w)), 'grade: book + Polymarket counts as two families'); }
 console.log(f ? f + ' failed' : 'all passed'); process.exit(f ? 1 : 0);

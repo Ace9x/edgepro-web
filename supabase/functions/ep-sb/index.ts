@@ -6,7 +6,18 @@ const H = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": 
 const out = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: H });
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: H });
-  const u = new URL(req.url), p = u.searchParams.get("p") || "", dates = u.searchParams.get("dates") || "", groups = u.searchParams.get("groups") || "", limit = u.searchParams.get("limit") || "";
+  const u0 = new URL(req.url); let gid = u0.searchParams.get("nhlgame"); const nd = u0.searchParams.get("nhldate"), nh = u0.searchParams.get("nhlhome");
+  if (!gid && nd && nh && /^\d{4}-\d\d-\d\d$/.test(nd) && /^[A-Z]{2,3}$/.test(nh)) { const sc = await fetch(`https://api-web.nhle.com/v1/score/${nd}`).then(r => r.ok ? r.json() : null).catch(() => null);
+    const g = (sc?.games || []).find((x: any) => x.homeTeam?.abbrev === nh); if (!g) return out({ error: "no NHL game for that home team on that date" }, 404); gid = String(g.id); }
+  if (gid) { // NHL goalie check: starters from the NHL's own boxscore (posted near puck drop), plus each team's goalies
+    if (!/^\d{10}$/.test(gid)) return out({ error: "bad game id" }, 400);
+    const ck = `nhlg:${gid}`; const { data: hit } = await db.rpc("ep_cache_get", { key: ck, max_age: 120 }); if (hit) return out({ ...hit, cached: true });
+    const [bx, ld] = await Promise.all([fetch(`https://api-web.nhle.com/v1/gamecenter/${gid}/boxscore`).then(r => r.ok ? r.json() : null).catch(() => null), fetch(`https://api-web.nhle.com/v1/gamecenter/${gid}/landing`).then(r => r.ok ? r.json() : null).catch(() => null)]);
+    if (!bx && !ld) return out({ error: "NHL API unavailable" }, 502);
+    const side = (k: "homeTeam" | "awayTeam") => { const gs = bx?.playerByGameStats?.[k]?.goalies || []; const st = gs.find((g: any) => g.starter); return { abbr: (bx || ld)?.[k]?.abbrev, starter: st ? st.name?.default : null, goalies: (ld?.matchup?.goalieComparison?.[k]?.leaders || []).map((g: any) => g.name?.default) }; };
+    const body = { state: (bx || ld)?.gameState, home: side("homeTeam"), away: side("awayTeam"), fetched: new Date().toISOString(), src: "NHL api-web gamecenter" };
+    await db.rpc("ep_cache_put", { key: ck, b: body }); return out(body); }
+  const u = u0, p = u.searchParams.get("p") || "", dates = u.searchParams.get("dates") || "", groups = u.searchParams.get("groups") || "", limit = u.searchParams.get("limit") || "";
   if (!/^[a-z]+\/[a-z0-9.\-]+$/.test(p) || (dates && !/^\d{8}$/.test(dates)) || (groups && !/^\d{1,3}$/.test(groups)) || (limit && !/^\d{1,3}$/.test(limit))) return out({ error: "bad params" }, 400);
   const qs = new URLSearchParams(); if (dates) qs.set("dates", dates); if (groups) qs.set("groups", groups); if (limit) qs.set("limit", limit);
   const ck = `sb:${p}:${qs}`; const { data: hit } = await db.rpc("ep_cache_get", { key: ck, max_age: 60 }); if (hit) return out({ ...hit, cached: true });

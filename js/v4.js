@@ -179,12 +179,16 @@ function gateCard() { const S = X.S; const e = S.events.find(x => x.id === S.des
   return `<div class="card"><div class="card-h"><b>Injury & lineup gate</b><span class="small muted">${esc(e.away.abbr)} @ ${esc(e.home.abbr)}</span></div>
   <div class="tbl"><table><tr><th>Source</th><th>Status</th><th>Checked</th></tr>${row('ESPN injury report', g.espnAt, g.espnAt ? `${g.espnN} listed` : '<span class="tag warn">retrying</span>', g.espnSrc)}
   ${row(g.s2Name || 'Second source', g.s2At, g.s2At ? `${g.s2N} listed${g.x ? ` · ${g.x.both} on both lists` : ''}` : g.manual ? esc(g.manual.src) : `<span class="tag warn">retrying</span> <button class="btn sm" data-act="gatecheck" data-id="${e.id}">I checked another source</button>`, g.s2Src)}
-  ${e.league === 'mlb' ? row('MLB StatsAPI lineups', g.luAt, g.luAt ? 'both lineups confirmed' : '<span class="tag warn">lineups not posted yet</span>') : ''}</table></div>
+  ${e.league === 'mlb' ? row('MLB StatsAPI lineups', g.luAt, g.luAt ? 'both lineups confirmed' : '<span class="tag warn">lineups not posted yet</span>') : ''}
+  ${e.league === 'nhl' ? (() => { const G = g.goalie, gc = LS.get('gconf', {})[e.id], both = G?.home?.starter && G?.away?.starter;
+    const txt = both ? `Starters: ${esc(G.away.starter)} (${esc(G.away.abbr)}) · ${esc(G.home.starter)} (${esc(G.home.abbr)})` : gc && Date.now() - gc.at < 3 * 3600e3 ? `Confirmed by you at ${tm2(gc.at)} ET (Daily Faceoff)` : `<span class="tag warn">not confirmed</span> ${G ? `Goalies: ${esc(G.away.abbr)} ${esc((G.away.goalies || []).join(' / ') || '—')} · ${esc(G.home.abbr)} ${esc((G.home.goalies || []).join(' / ') || '—')}` : esc(g.goalieErr || '')}. NHL posts starters near puck drop. <a href="https://www.dailyfaceoff.com/starting-goalies/" target="_blank" rel="noopener">Check Daily Faceoff</a> <button class="btn sm" data-act="gconf" data-id="${e.id}">I confirmed both starters</button>`;
+    return row('NHL starting goalies', g.gAt, txt, 'NHL api-web gamecenter'); })() : ''}</table></div>
   ${g.x && (g.x.onlyA.length || g.x.onlyB.length) ? `<div class="small muted">Only on one list: ${esc([...g.x.onlyA.map(n => n + ' (ESPN)'), ...g.x.onlyB.map(n => n + ' (' + (g.s2Name || '2nd') + ')')].slice(0, 8).join(', '))} — check these before trusting a pick.</div>` : ''}
   <div class="src">${g.ok ? '<span class="tag good">✓ Gate passed</span> Two independent sources checked within the last 60 minutes.' : `<span class="tag warn">Gate open</span> ${esc(g.why || 'Needs two sources checked within 60 minutes.')}`}</div></div>`; }
 export function gateEval(e) { const g = gateS[e.id] ||= {}, fresh = t => t && Date.now() - t < 3600e3; const s2 = g.s2At || g.manual?.at;
-  g.ok = !!(fresh(g.espnAt) && fresh(s2) && (e.league !== 'mlb' || fresh(g.luAt)));
-  g.why = !fresh(g.espnAt) ? 'ESPN injury report not pulled in the last 60 minutes.' : !fresh(s2) ? 'Second injury source not pulled in the last 60 minutes.' : e.league === 'mlb' && !fresh(g.luAt) ? 'MLB lineups not confirmed yet.' : ''; return g; }
+  const gc = LS.get('gconf', {})[e.id], goalieOk = e.league !== 'nhl' || !!(g.goalie?.home?.starter && g.goalie?.away?.starter) || !!(gc && Date.now() - gc.at < 3 * 3600e3);
+  g.ok = !!(fresh(g.espnAt) && fresh(s2) && (e.league !== 'mlb' || fresh(g.luAt)) && goalieOk);
+  g.why = !fresh(g.espnAt) ? 'ESPN injury report not pulled in the last 60 minutes.' : !fresh(s2) ? 'Second injury source not pulled in the last 60 minutes.' : e.league === 'mlb' && !fresh(g.luAt) ? 'MLB lineups not confirmed yet.' : !goalieOk ? 'NHL starting goalies not confirmed yet.' : ''; return g; }
 const stamp = t => `${new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${Date.now() - t > 3600e3 ? ' <span class="tag warn">' + ic('clock') + ' stale</span>' : ''}`;
 async function loadGate(e) { const g = gateS[e.id];
   const [a, b] = await Promise.allSettled([X.I.injuries(e), X.I.injuries2(e)]);
@@ -195,6 +199,8 @@ async function loadGate(e) { const g = gateS[e.id];
   if (e.league === 'mlb') { try { const d = new Date(e.start).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); const r = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${d}&hydrate=lineups,probablePitcher`).then(x => x.json());
     const gm = r.dates?.[0]?.games?.find(x => [x.teams.home.team.name, x.teams.away.team.name].some(n => n.includes(e.home.name) || n.includes(e.away.name)));
     if (gm) { const n = (gm.lineups?.homePlayers?.length || 0) + (gm.lineups?.awayPlayers?.length || 0); if (n >= 18) g.luAt = Date.now(); } } catch {} }
+  if (e.league === 'nhl') { const NHLAB = { TB: 'TBL', NJ: 'NJD', LA: 'LAK', SJ: 'SJS', UTAH: 'UTA' }; const d = new Date(e.start).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    try { const r = await fetch(`https://czjwiudbasqwlwvezmaz.supabase.co/functions/v1/ep-sb?nhldate=${d}&nhlhome=${NHLAB[e.home.abbr] || e.home.abbr}`).then(x => x.json()); if (!r.error) { g.goalie = r; g.gAt = new Date(r.fetched).getTime(); } else g.goalieErr = r.error; } catch (x) { g.goalieErr = 'NHL API unavailable'; } }
   g.loading = false; gateEval(e); if (['desk', 'today'].includes(X.S.tab)) rr(); }
 export const loadGateFor = e => { const g = gateS[e.id] ||= {}; if (!g.tried) { g.tried = true; g.loading = true; loadGate(e); } return g; };
 
@@ -278,6 +284,7 @@ export async function act(a, t, ctx) { X = ctx; const S = X.S;
     case 'ledbook': ledS.book = t.dataset.k; rr(); return true;
     case 'validate': ledS.valT = $('#valT').value; ledS.val = Lg.validate(Lg.parseRows(ledS.valT)); rr(); return true;
     case 'trretry': loadTrends(trS.ev); return true;
+    case 'gconf': { const c = LS.get('gconf', {}); c[t.dataset.id] = { at: Date.now() }; LS.set('gconf', c); const e = X.S.events.find(x => x.id === t.dataset.id); if (e) gateEval(e); X.render(); return true; }
     case 'gatecheck': { const src = prompt('Which source did you check lineups/injuries on? (e.g. RotoWire, team X account)'); if (!src) return true; const g = gateS[t.dataset.id] ||= {}; g.manual = { at: Date.now(), src: 'you checked ' + src.slice(0, 40) }; rr(); return true; }
     case 'limsave': { const w = parseFloat($('#limW').value), d = parseFloat($('#limD').value); const l = lim(); l.weekly = w > 0 ? w : null; l.dailyStop = d > 0 ? d : null; LS.set('limits', l); toast('Limits saved'); rr(); return true; }
     case 'lock': { const d = +t.dataset.d; if (!confirm(`Pause bet tracking for ${d === 1 ? '24 hours' : d + ' days'}? You can't end the break early.`)) return true; const l = lim(); l.lockUntil = Date.now() + d * 864e5; LS.set('limits', l); rr(); return true; }
@@ -487,7 +494,7 @@ export async function loadBooks(S) { S.books ||= {}; const pre = S.events.filter
 // ================= Desk design pass (desk_design.md) =================
 /** odds age for a game, from the feed's real fetched-at time */
 const oddsAt = e => e.odds?.fetchedAt ? new Date(e.odds.fetchedAt).getTime() : X.S.fetched ? +X.S.fetched : null;
-export function fresh(e) { const t = oddsAt(e); const m = t ? (Date.now() - t) / 60000 : null; return { t, m, warn: m != null && m > 30, stale: m != null && m > 90 }; }
+export function fresh(e) { const t = oddsAt(e); const m = t ? (Date.now() - t) / 60000 : null; return { t, m, warn: m == null || m > (e.state === 'in' ? 1 : 10), stale: m == null || m > (e.state === 'in' ? 5 : 60) }; } // no timestamp = stale, never assumed fresh
 /** grade chip: letter + model % + plain label; greyed when a gate blocks it */
 export function gradeChip(g, { blocked = null } = {}) { const L = g.grade, lab = blocked ? blocked : g.status === 'SIT' ? 'SIT' : L === 'D' ? 'Pass' : L === 'C' ? 'Lean' : g.official ? 'Official' : 'Not official';
   return `<span class="gchip g${L}${blocked ? ' blocked' : ''}" title="${esc(blocked ? 'Grade hidden: ' + blocked : 'Model ' + (g.conf == null ? 'n/a' : (g.conf * 100).toFixed(1) + '%'))}"><b>${blocked ? '–' : L}</b>${!blocked && g.conf != null ? `<span class="num">${Math.round(g.conf * 100)}%</span>` : ''}<span>${esc(lab)}</span></span>`; }

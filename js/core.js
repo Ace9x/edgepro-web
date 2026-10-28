@@ -20,6 +20,8 @@ export const TIERS = [['A', 0.75], ['B', 0.68], ['C', 0.58], ['D', 0]];
 export const tierOf = p => TIERS.find(([, t]) => p >= t)[0];
 const rank = g => ['D', 'C', 'B', 'A'].indexOf(g);
 /** pick: {sport, market:'ml'|'spread'|'total', side, price, sources:[{name, prob, kind:'outside'|'model'}], wind:{mph, blowingIn:true|false|null}} */
+/** source family: 'sportsbook' | 'prediction market' | 'outside' (user-entered outside numbers) */
+export const familyOf = s => s.family || (/polymarket|kalshi/i.test(s.name) ? 'prediction market' : /no-vig|median|book|draftkings|fanduel|espn|odds api|consensus|\bdk\b/i.test(s.name) ? 'sportsbook' : 'outside');
 export function gradePick(pick) {
   const why = []; const outside = (pick.sources || []).filter(s => s.kind !== 'model' && s.prob > 0 && s.prob < 1);
   const models = (pick.sources || []).filter(s => s.kind === 'model');
@@ -31,12 +33,14 @@ export function gradePick(pick) {
   outside.forEach(s => why.push(`Outside #: ${s.name} ${(s.prob * 100).toFixed(1)}%`));
   models.forEach(s => why.push(`Model (check only, not counted): ${s.name} ${(s.prob * 100).toFixed(1)}%`));
   let grade = tierOf(conf); why.push(`Avg of ${outside.length} outside # = ${(conf * 100).toFixed(1)}% → tier ${grade}`);
-  const names = new Set(outside.map(s => s.name.toLowerCase()));
-  if (names.size < 2 && rank(grade) > rank('B')) { grade = 'B'; why.push('Capped at B: only one independent source'); }
+  // independence is by source family, not by name: two sportsbook numbers (e.g. DK no-vig + book median) are one family
+  const fams = new Set(outside.map(familyOf)); const names = fams;
+  why.push(`Source families: ${[...fams].join(' + ')}`);
+  if (names.size < 2 && rank(grade) > rank('B')) { grade = 'B'; why.push('Capped at B: only one source family'); }
   if (grade === 'A') { const ps = outside.map(s => s.prob); if (Math.max(...ps) - Math.min(...ps) > 0.05) { grade = 'B'; why.push('A needs sources to agree within 5 pts → B'); } }
   const edge = conf - implied; why.push(`Edge vs price: ${(edge * 100).toFixed(1)} pts, EV ${(ev(conf, pick.price) * 100).toFixed(1)}%`);
   const blocks = [];
-  if (names.size < 2) blocks.push('Official needs two independent outside numbers');
+  if (names.size < 2) blocks.push('Official needs two different source families (sportsbook + prediction market or outside number)');
   if (rank(grade) < rank('B')) blocks.push('Official needs B or better (C is a lean)');
   if (pick.gate === false) blocks.push('Injury / lineup / goalie gate not passed (needs two sources within 60 min)');
   const sit = pick.price < JUICE_CAP; if (sit) blocks.push(`Juice ${fmtAm(pick.price)} worse than ${JUICE_CAP} cap → SIT`);
