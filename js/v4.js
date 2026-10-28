@@ -495,7 +495,15 @@ export function crossRow(m) { const pm = m.quotes.find(q => /^Polymarket/.test(q
   const bi = C.amToProb(bk.price); if (!pm) return `<div class="xrow small"><span>${esc(bk.book)} ${am(bk.price)} = ${pc(bi)}</span><span class="muted">no Polymarket market for this line</span></div>`;
   const gap = (pm.prob - bi) * 100; return `<div class="xrow small"><span>Polymarket <b class="num">${Math.round(pm.prob * 100)}¢</b> = ${pc(pm.prob)}</span><span>${esc(bk.book)} <b class="num">${am(bk.price)}</b> = ${pc(bi)}</span><span class="num ${gap < 0 ? 'mv-up' : 'mv-dn'}" title="Book % includes its vig">gap ${gap > 0 ? '+' : ''}${gap.toFixed(1)} pts</span></div>`; }
 /** line-movement sparkline from this device's saved snapshots (real pulls only) */
-export function spark(e, key = 'mh', w = 120, h = 32) { const a = (LS.get('hist', {})[e.id] || []).filter(x => x[key] != null); if (a.length < 2) return '';
+const PH = {}; // Polymarket price history per token
+const phDraw = (tok, w = 120, h = 32) => { const v = PH[tok]; if (!v || v.length < 2) return ''; const ps = v.map(x => x[1]), lo = Math.min(...ps), hi = Math.max(...ps), r = hi - lo || 0.01, t0 = v[0][0], t1 = v[v.length - 1][0];
+  const pts = v.map(x => `${(((x[0] - t0) / (t1 - t0 || 1)) * (w - 4) + 2).toFixed(1)},${(h - 3 - ((x[1] - lo) / r) * (h - 6)).toFixed(1)}`).join(' ');
+  return `<span class="spark pmh" role="img" aria-label="Polymarket price over 24 hours from ${Math.round(ps[0] * 100)} to ${Math.round(ps[ps.length - 1] * 100)} cents"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="#5EEAD4" stroke-width="1.5" stroke-dasharray="3 2"/></svg><span class="small muted num">${Math.round(ps[0] * 100)}¢ → ${Math.round(ps[ps.length - 1] * 100)}¢ · 24h <span class="credit">Data: Polymarket</span></span></span>`; };
+function polySpark(e, key) { const tok = (key === 'mh' || key === 'ma') && X?.S?.poly?.[e.id]?.mlTok?.[key === 'mh' ? 'home' : 'away']; if (!tok) return '';
+  if (PH[tok] === undefined) { PH[tok] = null; X.D.polyHistory(tok).then(v => { PH[tok] = v; document.querySelectorAll(`[data-ptok="${tok}"]`).forEach(el => { el.outerHTML = phDraw(tok); }); }).catch(() => { PH[tok] = []; document.querySelectorAll(`[data-ptok="${tok}"]`).forEach(el => el.remove()); }); }
+  return PH[tok] ? phDraw(tok) : `<span data-ptok="${esc(tok)}"></span>`; }
+export function spark(e, key = 'mh', w = 120, h = 32) { return bookSpark(e, key, w, h) + polySpark(e, key); }
+function bookSpark(e, key = 'mh', w = 120, h = 32) { const a = (LS.get('hist', {})[e.id] || []).filter(x => x[key] != null); if (a.length < 2) return '';
   const v = a.map(x => key === 'mh' || key === 'ma' ? C.amToProb(x[key]) : x[key]), lo = Math.min(...v), hi = Math.max(...v), r = hi - lo || 1, t0 = a[0].t, t1 = a[a.length - 1].t || t0 + 1;
   const pts = a.map((x, i) => `${(((x.t - t0) / (t1 - t0 || 1)) * (w - 4) + 2).toFixed(1)},${(h - 3 - ((v[i] - lo) / r) * (h - 6)).toFixed(1)}`).join(' ');
   const first = a[0][key], last = a[a.length - 1][key];

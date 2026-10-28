@@ -63,11 +63,13 @@ export function matchPoly(ev, list) {
   for (const m of pe.markets || []) {
     if (m.closed) continue; let outc, pr; try { outc = JSON.parse(m.outcomes); pr = JSON.parse(m.outcomePrices).map(Number); } catch { continue; }
     const ba = +m.bestAsk, bb = +m.bestBid, ask = i => (i === 0 ? (ba > 0 && ba < 1 ? ba : null) : (bb > 0 && bb < 1 ? +(1 - bb).toFixed(3) : null));
-    if (m.sportsMarketType === 'moneyline' && !out.ml) { const ih = outc.findIndex(x => hn.includes(x.toLowerCase()) || x.toLowerCase().includes(hn)); if (ih >= 0) { out.ml = { home: pr[ih], away: pr[1 - ih] }; out.mlAsk = { home: ask(ih), away: ask(1 - ih) }; } }
+    if (m.sportsMarketType === 'moneyline' && !out.ml) { const ih = outc.findIndex(x => hn.includes(x.toLowerCase()) || x.toLowerCase().includes(hn)); if (ih >= 0) { out.ml = { home: pr[ih], away: pr[1 - ih] }; out.mlAsk = { home: ask(ih), away: ask(1 - ih) }; try { const tk = JSON.parse(m.clobTokenIds); out.mlTok = { home: tk[ih], away: tk[1 - ih] }; } catch { /* no token ids */ } } }
     if (m.sportsMarketType === 'totals') { const L = parseFloat((m.question.match(/O\/U ([\d.]+)/) || [])[1]); if (!isNaN(L)) out.totals.push({ line: L, over: pr[outc.indexOf('Over')], under: pr[outc.indexOf('Under')], overAsk: ask(outc.indexOf('Over')), underAsk: ask(outc.indexOf('Under')) }); }
   }
   return out;
 }
+/** Polymarket CLOB price history for one outcome token (last 24h, 30-min points): [[unixSec, price], ...] */
+export async function polyHistory(tok) { const d = await j(`https://clob.polymarket.com/prices-history?market=${encodeURIComponent(tok)}&interval=1d&fidelity=30`); return (d.history || []).map(x => [x.t, +x.p]).filter(x => x[1] > 0 && x[1] < 1); }
 // ---------- Kalshi (public market data; may be blocked by CORS/region — reported honestly) ----------
 const kCache = {}; let kBlocked = null, kBlockedAt = 0; // Kalshi sends no CORS headers: after the first network failure, skip the other leagues instead of re-erroring
 export async function kalshi(lg) {
