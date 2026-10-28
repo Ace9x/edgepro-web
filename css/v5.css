@@ -1,0 +1,45 @@
+/* design_v2.md (EdgePro) — motion tokens, semantic colors, numerals, density, ticks */
+:root{--ease-out:cubic-bezier(.22,1,.36,1);--ease-in-out:cubic-bezier(.65,0,.35,1);
+  --spring:linear(0,.009,.035 2.1%,.141 4.4%,.723 12.9%,.938 16.7%,1.017 19.4%,1.067,1.077 24.6%,1.065 27.6%,1.004 35%,.99 39.8%,.997 50.6%,1);
+  --dur-1:120ms;--dur-2:200ms;--dur-3:320ms;
+  /* #18 semantic tokens */ --positive:#2DD4BF;--model:#A78BFA;--neutral:#94A3B8;--base:#0A0F0F;--accent:#2DD4BF;
+  --row-h:48px}
+/* #2 surfaces generated from 2 inputs (base + accent) at +3/+6/+9 L, where relative color syntax is supported */
+@supports (color: oklch(from red l c h)){[data-theme=dark]{--bg:var(--base);--surface:oklch(from var(--base) calc(l + .03) c h);--surface-2:oklch(from var(--base) calc(l + .06) c h);--surface-3:oklch(from var(--base) calc(l + .09) c h);--line:oklch(from var(--base) calc(l + .12) c h)}}
+/* #1 #14 numerals: tabular, Inter cv11, numeric weight without bolding labels */
+.num,td.n,.od b,.stat b,.gchip,.spark .num,table td{font-feature-settings:"tnum","cv11";font-variant-numeric:tabular-nums}
+.num,td.n,.od b{font-variation-settings:"wght" 560}
+.fair,.model{color:var(--model)}
+/* #3 line-move tick: 1px underline fades out, replaces background flash */
+.flash-up,.flash-dn{animation:none;position:relative}
+.flash-up::after,.flash-dn::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:#5EEAD4;animation:tick 600ms var(--ease-out) forwards}
+@keyframes tick{from{opacity:1}to{opacity:0}}
+/* #4 command palette */
+#cmdk{position:fixed;inset:0;z-index:80;background:rgb(0 0 0/.5);display:flex;align-items:flex-start;justify-content:center;padding-top:12vh}
+#cmdk.hide{display:none}
+#cmdk .box{width:min(560px,92vw);background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;animation:ck 160ms var(--ease-out)}
+@keyframes ck{from{opacity:0;transform:scale(.98)}}
+#cmdk input{width:100%;border:0;border-bottom:1px solid var(--line);background:transparent;padding:14px 16px;font-size:16px;color:var(--text)}
+#cmdk ul{list-style:none;margin:0;padding:6px;max-height:50vh;overflow:auto}#cmdk li{padding:10px 12px;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+#cmdk li[aria-selected=true],#cmdk li:hover{background:var(--surface-3)}#cmdk li small{color:var(--text-3)}
+/* #5 view transitions */
+::view-transition-old(root),::view-transition-new(root){animation-duration:280ms;animation-timing-function:var(--ease-in-out)}
+/* #8 learning delight: glossary / explainers unfold with a spring */
+details.learn[open]>*:not(summary){animation:unfold 420ms var(--spring)}@keyframes unfold{from{opacity:0;transform:translateY(-6px) scaleY(.96)}}
+/* #9 equity / bankroll curve draws in once as it scrolls into view */
+@supports (animation-timeline: view()){svg.curve polyline,svg .cu,svg .cd{stroke-dasharray:2000;stroke-dashoffset:2000;animation:draw linear both;animation-timeline:view();animation-range:entry 0% cover 40%}}
+/* #11 session timer chip */
+.sess{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--model);border:1px solid color-mix(in srgb,var(--model) 40%,transparent);border-radius:999px;padding:2px 10px;margin:6px 0}
+/* #12 swipe actions on bet rows */
+.swrow{position:relative;touch-action:pan-y}.swrow .swact{display:none}.swrow.open .swact{display:inline-flex;gap:6px}
+/* #13 density */
+[data-density=compact] table td,[data-density=compact] table th{padding-top:6px;padding-bottom:6px}[data-density=compact]{--row-h:36px}
+table tr{min-height:var(--row-h)}
+/* #15 edge badge angle, hover only, desktop only */
+@property --a{syntax:'<angle>';inherits:false;initial-value:0deg}
+@media (hover:hover) and (min-width:900px){.gchip.gA:hover,.gchip.gB:hover{background-image:conic-gradient(from var(--a),transparent,rgb(45 212 191/.25),transparent);animation:spinA 6s linear infinite}}
+@keyframes spinA{to{--a:360deg}}
+/* #16 loss-chasing guard */
+.guard{text-align:center;padding:12px}.guard .btn[disabled]{opacity:.5}
+.credit{color:var(--text-3);font-size:12px}
+@media (prefers-reduced-motion:reduce){*{animation-duration:1ms!important;transition-duration:1ms!important}}

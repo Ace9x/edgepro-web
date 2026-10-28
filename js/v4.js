@@ -379,7 +379,7 @@ export function plStatement() { const s = LS.get('bets', []).filter(b => b.resul
 export async function deleteCloud(scope) { await A.init(); const c = A.client(); const { data } = await c.auth.getSession(); const r = await fetch('https://czjwiudbasqwlwvezmaz.supabase.co/functions/v1/ep-delete-account', { method: 'POST', headers: { Authorization: 'Bearer ' + data.session.access_token, 'Content-Type': 'application/json' }, body: JSON.stringify({ scope }) }).then(x => x.json());
   if (r.error) throw new Error(r.error); prof = null; pS.mine = null; if (scope === 'account') await A.signOut(); return r; }
 /** permanent per-bet change log: every create/edit/settle/delete appends, nothing is removed */
-export function logBet(kind, bet, before) { const l = LS.get('betlog', []); l.push({ at: new Date().toISOString(), kind, id: bet.id, label: bet.label, before: before ? { price: before.price, stake: before.stake, result: before.result ?? null } : null, after: kind === 'delete' ? null : { price: bet.price, stake: bet.stake, result: bet.result ?? null } }); LS.set('betlog', l.slice(-5000)); }
+export function logBet(kind, bet, before) { if (kind === 'create') toast('Logged.'); const l = LS.get('betlog', []); l.push({ at: new Date().toISOString(), kind, id: bet.id, label: bet.label, before: before ? { price: before.price, stake: before.stake, result: before.result ?? null } : null, after: kind === 'delete' ? null : { price: bet.price, stake: bet.stake, result: bet.result ?? null } }); LS.set('betlog', l.slice(-5000)); }
 
 // ---------- state-aware help line (user-picked state, never geolocated) ----------
 export const US = LS.get('state', '');
@@ -452,7 +452,7 @@ export function calMeter() { const n = L.cached().filter(r => r.result).length, 
 /** glossary used for "Explain this" tooltips and the Tools glossary card */
 export const GLOSS = { 'No-vig': 'The price with the book’s built-in margin removed — the market’s fair estimate of the chance.', Vig: 'The book’s margin (hold). Two −110 sides imply 104.8%; the extra 4.8% is vig.', EV: 'Expected value: average return per $100 if the fair chance is right. +3% EV = +$3 per $100 on average.', CLV: 'Closing line value: how much better your price was than the final price before the game. Beating the close is the best long-run skill signal.', Hold: 'Same as vig: how far the implied chances add up past 100%.', 'De-vig': 'Methods to strip the vig: multiplicative (proportional), additive, power, and Shin. They differ mostly on longshots.', Stale: 'A book whose price hasn’t caught up with the rest of the market.' };
 export const gl = (term, label = term) => `<abbr class="gl" tabindex="0" title="${esc(GLOSS[term] || '')}">${esc(label)}</abbr>`;
-export const glossaryCard = () => `<div class="card"><div class="card-h"><b>Glossary</b><span class="small muted">tap a dotted term anywhere for this</span></div><dl class="gloss">${Object.entries(GLOSS).map(([k, v]) => `<dt>${esc(k)}</dt><dd class="small muted">${esc(v)}</dd>`).join('')}</dl></div>`;
+export const glossaryCard = () => `<details class="card learn"><summary><b>Glossary</b> <span class="small muted">What is fair odds, CLV, no-vig…</span></summary><dl class="gloss">${Object.entries(GLOSS).map(([k, v]) => `<dt>${esc(k)}</dt><dd class="small muted">${esc(v)}</dd>`).join('')}</dl></details>`;
 /** sign-in nudge after 3+ tracked bets (dismissible, once) */
 export function syncNudge() { if (A.user || LS.get('nudge_sync', 0) || LS.get('bets', []).length < 3) return '';
   return `<div class="card nudge"><div class="row" style="align-items:center"><div style="flex:1"><b>Keep your ${LS.get('bets', []).length} bets safe</b><div class="small muted">Sign in to sync across devices. Your bets on this device stay and merge.</div></div><button class="btn pri sm" data-t="tools">Sign in</button><button class="icon-btn" data-act="nudgex" aria-label="Dismiss">${ic('x')}</button></div></div>`; }
@@ -518,17 +518,18 @@ function bookSpark(e, key = 'mh', w = 120, h = 32) { const a = (LS.get('hist', {
   const first = a[0][key], last = a[a.length - 1][key];
   return `<span class="spark" role="img" aria-label="Line moved from ${esc(String(first))} to ${esc(String(last))} over ${a.length} pulls"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="#A3ACB8" stroke-width="1.5"/><circle cx="${pts.split(' ').pop().split(',')[0]}" cy="${pts.split(' ').pop().split(',')[1]}" r="3" fill="#5EEAD4"/></svg><span class="small muted num">${key === 'tot' || key === 'sp' ? first + ' → ' + last : am(first) + ' → ' + am(last)}</span></span>`; }
 /** one pick card: grade chip, why-this-grade, cross-market row, freshness + injury gates */
+const famLine = g => { const f = g.why.find(w => /^Source families/.test(w)); return f ? `<div class="small"><b>${esc(f)}</b> (Official needs two different families)</div>` : ''; };
 export function pickCard(m, g) { const e = m.e, f = fresh(e), gt = gateS[e.id], gateOpen = !gt?.ok;
   const blocked = f.stale ? 'Stale, refreshing' : null;
   const srcs = m.src.map(s => `<span class="pill">${esc(s.name)} ${pc(s.prob)}</span>`).join('');
   const fails = g.why.filter(w => w.startsWith('✗ ')).map(w => w.slice(2));
-  const reasons = g.why.filter(w => !w.startsWith('✗ ') && !/^✓|^Not official/.test(w)).slice(0, 8);
+  const reasons = g.why.filter(w => !w.startsWith('✗ ') && !/^✓|^Not official|^Source families/.test(w)).slice(0, 7);
   return `<div class="card pick${blocked ? ' greyed' : ''}" data-ev="${e.id}"><div class="row" style="justify-content:space-between;align-items:center;gap:12px">
   <div style="min-width:0">${gradeChip(g, { blocked })} <b>${esc(m.label)}</b> <span class="num">${am(m.best?.price ?? m.price)}</span>${m.best?.book ? ` <span class="small muted">best at ${esc(m.best.book)}</span>` : ''}<div class="small muted">${esc(e.away.abbr)} @ ${esc(e.home.abbr)} · ${tm2(e.start)} · <span class="${f.warn ? 'warn-t' : ''}">Odds ${f.t ? tm2(f.t) + ' ET · ' + Math.round(f.m) + 'm' : 'no price'}</span>${gt?.espnAt ? ` · Injuries ${tm2(gt.espnAt)} ET` : ''}</div></div>
 </div>
   ${crossRow(m)}${spark(e, m.market === 'total' ? 'tot' : m.market === 'spread' ? 'sp' : m.side === 'home' ? 'mh' : 'ma')}
   ${gateOpen ? `<div class="small warn-t">${ic('warn')} ${esc(gt?.why || 'Injury & lineup check not run yet')} — grade can't be Official.</div>` : ''}
-  <details class="whyg"><summary>Why this grade</summary><ul class="why">${reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul><div class="pills">${srcs}</div>
+  <details class="whyg"><summary>Why this grade</summary>${famLine(g)}<ul class="why">${reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul><div class="pills">${srcs}</div>
   ${fails.length ? `<div class="small"><b>What would change it</b><ul class="why">${fails.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '<div class="small mv-up">All Official checks pass.</div>'}<div class="src">Research only · <a href="terms.html">Not advice</a></div></details></div>`; }
 const tm2 = t => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
