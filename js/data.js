@@ -83,13 +83,18 @@ export function matchKalshi(ev, k) {
   const mid = m => (m ? (m.yes_bid && m.yes_ask ? (m.yes_bid + m.yes_ask) / 200 : m.last_price / 100) : null);
   const h = pick(ev.home), a = pick(ev.away); return h || a ? { home: mid(h), away: mid(a), ticker: (h || a).event_ticker } : null;
 }
-// ---------- Weather (Open-Meteo) ----------
+// ---------- Weather: NWS weather.gov primary (via EdgePro server, contact User-Agent), Open-Meteo backup (non-commercial, CC BY 4.0) ----------
 export async function weather(ev) {
   if (!ev.venue?.city) return null; if (ev.venue.indoor) return { indoor: true };
+  const r = await F.pull('Weather', 'wx:' + ev.id, [{ name: 'NWS weather.gov', run: () => j(`https://czjwiudbasqwlwvezmaz.supabase.co/functions/v1/ep-wx?city=${encodeURIComponent(ev.venue.city)}&state=${encodeURIComponent(ev.venue.state || '')}&t=${encodeURIComponent(ev.start)}`), ok: v => v && v.mph != null },
+    { name: 'Open-Meteo', run: () => meteo(ev), ok: v => v && v.mph != null }], { retries: 1 }).catch(() => null);
+  return r?.v || null;
+}
+async function meteo(ev) {
   const g = await j(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ev.venue.city)}&count=1`); const p = g.results?.[0]; if (!p) return null;
   const w = await j(`https://api.open-meteo.com/v1/forecast?latitude=${p.latitude}&longitude=${p.longitude}&hourly=wind_speed_10m,wind_direction_10m,temperature_2m,precipitation_probability&wind_speed_unit=mph&temperature_unit=fahrenheit&timezone=UTC&forecast_days=7`);
   const hr = ev.start.slice(0, 13) + ':00'; const i = w.hourly.time.indexOf(hr); if (i < 0) return null;
-  return { mph: Math.round(w.hourly.wind_speed_10m[i]), dir: w.hourly.wind_direction_10m[i], temp: Math.round(w.hourly.temperature_2m[i]), rain: w.hourly.precipitation_probability[i], src: 'Open-Meteo' };
+  return { mph: Math.round(w.hourly.wind_speed_10m[i]), dir: w.hourly.wind_direction_10m[i], temp: Math.round(w.hourly.temperature_2m[i]), rain: w.hourly.precipitation_probability[i], src: 'Open-Meteo', credit: 'Weather data by Open-Meteo.com (CC BY 4.0)' };
 }
 // ---------- Player game logs (prop hit-rate history) ----------
 export const roster = async (path, teamId) => { const d = await j(`https://site.api.espn.com/apis/site/v2/sports/${path}/teams/${teamId}/roster`); const a = d.athletes || []; return (a[0]?.items ? a.flatMap(g => g.items) : a).map(x => ({ id: x.id, name: x.fullName, pos: x.position?.abbreviation })); };
