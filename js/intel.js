@@ -91,14 +91,14 @@ export function parseCSV(t) {
   const col = (...ns) => h.findIndex(x => ns.some(n => x === n || x.includes(n)));
   const ci = { date: col('placed', 'date', 'time'), sel: col('label', 'selection', 'pick', 'bet', 'description', 'name'), game: col('game', 'event', 'matchup'), odds: col('odds', 'price', 'american'), stake: col('stake', 'risk', 'wager', 'amount'), book: col('book', 'sportsbook', 'site'), res: col('result', 'status', 'outcome'), profit: col('profit', 'net', 'p/l', 'pnl'), league: h.findIndex(x => x === 'league' || x === 'sport') };
   return rows.slice(1).map(r => { const g = k => (ci[k] >= 0 ? (r[ci[k]] || '').trim() : ''); let price = /^\d{1,2}\.\d+$/.test(g('odds')) ? null : parseAm(g('odds')); if (!price && /^\d+\.\d+$/.test(g('odds'))) { const d = +g('odds'); price = d >= 2 ? Math.round((d - 1) * 100) : Math.round(-100 / (d - 1)); }
-    const result = res(g('res')), stake = parseFloat(g('stake').replace(/[$,]/g, '')) || 1, pf = parseFloat(g('profit').replace(/[$,]/g, ''));
+    const result = res(g('res')), stake = 1, pf = NaN; // flat scoring: amounts in the file are ignored
     return { label: g('sel') || g('game') || 'Imported bet', game: g('game') || g('sel'), price, stake, book: g('book'), league: g('league').toLowerCase(), placed: g('date') && !isNaN(new Date(g('date'))) ? new Date(g('date')).toISOString() : new Date().toISOString(), result, profit: result ? (isNaN(pf) ? null : pf) : undefined }; }).filter(b => b.price);
 }
 // Parse pasted bet-slip / confirmation-email text. Splits on blank lines or "Bet ID"/"Ticket" markers; needs an American price in each chunk.
 export function parseSlip(t) {
   const chunks = t.replace(/\r/g, '').split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
   const out = []; for (const c of chunks) { const pm = c.match(/(?:^|[\s(@])([+-]\d{3,4})(?![\d.])/); if (!pm) continue; const price = parseAm(pm[1]);
-    const stake = parseFloat((c.match(/(?:wager|stake|risk|bet amount|amount)\s*:?\s*\$?\s*([\d,]+(?:\.\d+)?)/i) || c.match(/\$\s*([\d,]+(?:\.\d+)?)/) || [])[1]?.replace(/,/g, '')) || 1;
+    const stake = 1; // flat scoring: slip amounts are ignored
     const book = (c.match(/\b(DraftKings|FanDuel|BetMGM|Caesars|ESPN ?BET|BetRivers|Fanatics|bet365|Hard Rock|PointsBet|BetOnline|Bovada)\b/i) || [])[1] || '';
     const game = (c.match(/([A-Z][\w .'&-]{1,30}\s(?:@|vs\.?|at)\s[A-Z][\w .'&-]{1,30})/) || [])[1]?.trim() || '';
     const lines = c.split('\n').map(s => s.trim()).filter(s => s && !/wager|stake|risk|payout|to win|bet id|ticket|placed|odds/i.test(s));

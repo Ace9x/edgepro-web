@@ -39,7 +39,7 @@ export async function scoreboard(lg, date) {
   const ok = res.filter(r => r.status === 'fulfilled').map(r => r.value); scoreboard.meta = { source: ok[0]?.r.source, at: Math.min(...ok.map(x => x.r.at)), cached: ok.some(x => x.r.cached) };
   return ok.flatMap(x => x.ev).sort((a, b) => a.start.localeCompare(b.start));
 }
-export const eventFinal = async (path, id) => { const d = await j(`https://site.api.espn.com/apis/site/v2/sports/${path}/summary?event=${id}`); const c = d.header.competitions[0]; const H = c.competitors.find(t => t.homeAway === 'home'), A = c.competitors.find(t => t.homeAway === 'away'); return { completed: c.status.type.completed, home: +H.score, away: +A.score }; };
+export const eventFinal = async (path, id) => { if (!path || !id) throw new Error("no ESPN event for this bet"); const d = await j(`https://site.api.espn.com/apis/site/v2/sports/${path}/summary?event=${id}`); const c = d.header.competitions[0]; const H = c.competitors.find(t => t.homeAway === 'home'), A = c.competitors.find(t => t.homeAway === 'away'); return { completed: c.status.type.completed, home: +H.score, away: +A.score }; };
 // ---------- Polymarket (gamma API, CORS open) ----------
 const polyCache = {};
 export async function polyEvents(lg) {
