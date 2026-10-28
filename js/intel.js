@@ -82,8 +82,12 @@ export async function splits(ids) { if (!ids.length) return {}; const r = await 
 // ---------- bet import ----------
 function csvRows(t) { const rows = []; let row = [], f = '', q = false; for (let i = 0; i < t.length; i++) { const c = t[i]; if (q) { if (c === '"' && t[i + 1] === '"') { f += '"'; i++; } else if (c === '"') q = false; else f += c; } else if (c === '"') q = true; else if (c === ',') { row.push(f); f = ''; } else if (c === '\n' || c === '\r') { if (c === '\r' && t[i + 1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; } else f += c; } if (f || row.length) { row.push(f); rows.push(row); } return rows.filter(r => r.some(x => x.trim())); }
 const res = s => { s = (s || '').toLowerCase(); return /won|win|^w$/.test(s) ? 'win' : /lost|loss|lose|^l$/.test(s) ? 'loss' : /push|void|refund|cancel/.test(s) ? 'push' : null; };
+const EP_COLS = ['placed', 'start', 'game', 'league', 'label', 'price', 'stake', 'book', 'closePrice', 'clv', 'result', 'profit', 'final', 'settledAt'];
+const EP_NUM = new Set(['price', 'stake', 'closePrice', 'clv', 'profit', 'line']);
+/** EdgePro's own CSV export, read back column for column */
+function parseEdgePro(rows) { const h = rows[0].map(x => x.trim()); return rows.slice(1).filter(r => r.some(x => x !== '')).map(r => { const b = {}; h.forEach((k, i) => { const v = r[i]; if (v === '' || v == null) return; b[k] = EP_NUM.has(k) ? +v : k === 'final' ? (() => { try { return JSON.parse(v); } catch { return v; } })() : v; }); b.edgepro = true; return b; }).filter(b => b.label && b.price != null && !isNaN(b.price)); }
 export function parseCSV(t) {
-  const rows = csvRows(t); if (rows.length < 2) return []; const h = rows[0].map(x => x.trim().toLowerCase());
+  const rows = csvRows(t); if (rows.length < 2) return []; if (EP_COLS.every((c, i) => rows[0][i]?.trim() === c)) return parseEdgePro(rows); const h = rows[0].map(x => x.trim().toLowerCase());
   const col = (...ns) => h.findIndex(x => ns.some(n => x === n || x.includes(n)));
   const ci = { date: col('placed', 'date', 'time'), sel: col('label', 'selection', 'pick', 'bet', 'description', 'name'), game: col('game', 'event', 'matchup'), odds: col('odds', 'price', 'american'), stake: col('stake', 'risk', 'wager', 'amount'), book: col('book', 'sportsbook', 'site'), res: col('result', 'status', 'outcome'), profit: col('profit', 'net', 'p/l', 'pnl'), league: h.findIndex(x => x === 'league' || x === 'sport') };
   return rows.slice(1).map(r => { const g = k => (ci[k] >= 0 ? (r[ci[k]] || '').trim() : ''); let price = /^\d{1,2}\.\d+$/.test(g('odds')) ? null : parseAm(g('odds')); if (!price && /^\d+\.\d+$/.test(g('odds'))) { const d = +g('odds'); price = d >= 2 ? Math.round((d - 1) * 100) : Math.round(-100 / (d - 1)); }

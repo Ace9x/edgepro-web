@@ -358,9 +358,10 @@ export function consentGate() { if (consented()) return; const m = $('#modal'); 
   <div style="margin-top:8px">${stateSelect('cSt')}</div><div class="actions"><button class="btn pri" id="cGo" disabled>Continue</button></div><p class="small muted">Gambling problem? <span data-help>${helpLine()}</span>.</p></div>`;
   m.classList.remove('hide'); m.dataset.locked = '1'; const upd = () => ($('#cGo').disabled = !($('#cAge').checked && $('#cTos').checked)); $('#cAge').onchange = upd; $('#cTos').onchange = upd;
   $('#cGo').onclick = () => { LS.set('consent', { v: TERMS_V, at: new Date().toISOString(), age21: true, state: $('#cSt').value || null }); paintHelp(); delete m.dataset.locked; m.classList.add('hide'); }; $('#cAge').focus(); }
+export const EXPORT_COLS = ['placed', 'start', 'game', 'league', 'label', 'price', 'stake', 'book', 'closePrice', 'clv', 'result', 'profit', 'final', 'settledAt', 'id', 'eventId', 'market', 'side', 'line'];
 export function exportData(fmt) { const bets = LS.get('bets', []); const dump = { exported: new Date().toISOString(), consent: LS.get('consent', null), bets, betLog: LS.get('betlog', []), limits: lim(), favorites: favs(), profile: prof, grades: L.cached() };
-  const cols = ['placed', 'start', 'game', 'league', 'label', 'price', 'stake', 'book', 'closePrice', 'clv', 'result', 'profit', 'final', 'settledAt'];
-  const blob = fmt === 'csv' ? new Blob([[cols.join(','), ...bets.map(b => cols.map(c => JSON.stringify(b[c] ?? '')).join(','))].join('\n')], { type: 'text/csv' }) : new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' });
+  const cols = EXPORT_COLS;
+  const blob = fmt === 'csv' ? new Blob([[cols.join(','), ...bets.map(b => cols.map(c => { const v = b[c] ?? ''; const t = typeof v === 'object' ? JSON.stringify(v) : String(v); return '"' + t.replace(/"/g, '""') + '"'; }).join(','))].join('\n')], { type: 'text/csv' }) : new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' });
   Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `edgepro-export.${fmt}` }).click(); }
 export function plStatement() { const s = LS.get('bets', []).filter(b => b.result).sort((a, b) => String(a.start).localeCompare(String(b.start))); let run = 0;
   const rows = s.map(b => { run += b.profit || 0; return [fmtD(b.start, { year: 'numeric', month: '2-digit', day: '2-digit' }), b.game, b.label, b.price, b.stake, b.result, b.profit ?? 0, +run.toFixed(2)]; });
