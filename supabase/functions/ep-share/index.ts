@@ -7,13 +7,18 @@ const J = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, 
 const enc = new TextEncoder();
 const b64u = (u: Uint8Array) => btoa(String.fromCharCode(...u)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 let keyP: Promise<CryptoKey> | null = null;
-const key = () => keyP ??= (async () => { // key derived from the service secret; never leaves the server
-  const raw = await crypto.subtle.digest("SHA-256", enc.encode("edgepro-share-v1:" + (Deno.env.get("EP_SHARE_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"))));
+// signing key: its own secret only (EP_SHARE_SECRET env, else the dedicated private.kv secret). Never the service key; fails closed.
+const key = () => keyP ??= (async () => {
+  let sec = Deno.env.get("EP_SHARE_SECRET") || "";
+  if (!sec) { const adm = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!); const { data } = await adm.rpc("ep_share_key"); sec = data || ""; }
+  if (sec.length < 32) { keyP = null; throw new Error("share signing secret not configured"); }
+  const raw = await crypto.subtle.digest("SHA-256", enc.encode("edgepro-share-v2:" + sec));
   return crypto.subtle.importKey("raw", raw, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]); })();
 const sig = async (p: Record<string, unknown>) => b64u(new Uint8Array(await crypto.subtle.sign("HMAC", await key(), enc.encode([p.id, p.user_id, new Date(p.created_at as string).toISOString(), p.price, p.label, new Date(p.game_start as string).toISOString()].join("|"))))).slice(0, 32);
 const eq = (a: string, b: string) => { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: H });
+  try { await key(); } catch { return J({ error: "share links unavailable: signing secret not configured" }, 503); }
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const cols = "id,user_id,label,game,league,market,side,line,price,grade,game_start,created_at,close_price,clv,result,units";
   if (req.method === "POST") {

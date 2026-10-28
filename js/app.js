@@ -7,7 +7,8 @@ import * as A from './account.js';
 import * as I from './intel.js';
 import * as V4 from './v4.js';
 const $ = s => document.querySelector(s), V = $('#view');
-const LS = { get: (k, d) => { try { return JSON.parse(localStorage.getItem('ep_' + k)) ?? d; } catch { return d; } }, set: (k, v) => localStorage.setItem('ep_' + k, JSON.stringify(v)) };
+const clean = v => typeof v === 'string' ? v.replace(/[<>`]/g, '').slice(0, 2000) : Array.isArray(v) ? v.map(clean) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clean(x)])) : v; // user text never carries markup (XSS defence in depth)
+const LS = { get: (k, d) => { try { return JSON.parse(localStorage.getItem('ep_' + k)) ?? d; } catch { return d; } }, set: (k, v) => localStorage.setItem('ep_' + k, JSON.stringify(clean(v))) };
 const ic = n => `<svg class="ds-ic"><use href="#i-${n}"/></svg>`;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pct = p => (p == null ? '—' : (p * 100).toFixed(1) + '%');
@@ -108,7 +109,7 @@ function gameCard(e) {
   const fav = V4.isFav(e);
   return `<div class="card" data-ev="${e.id}">${e.state === 'in' ? V4.progress(e) : ''}<div class="status"><span>${st}</span><span>${esc(e.broadcast || '')}<button class="fav-star${fav ? ' on' : ''}" data-act="fav" data-id="${e.id}" aria-pressed="${fav}" aria-label="${fav ? 'Unfollow' : 'Follow'} this game">${ic('star')}</button>${e.path.startsWith('soccer') ? ' · ' + esc(e.path.split('/')[1]) : ''}</span></div><div class="game">${t('away')}${t('home')}</div>
   ${o ? `<div class="oddrow${stale() ? ' stale' : ''}" data-age><div class="od">MONEYLINE<b data-px="${e.id}|ml" class="ml2"><span>${esc(e.away.abbr)} ${C.fmtAm(o.ml.away?.close)}</span><span>${esc(e.home.abbr)} ${C.fmtAm(o.ml.home?.close)}</span></b>${mv(o.ml.home?.open, o.ml.home?.close)}</div><div class="od">SPREAD<b data-px="${e.id}|sp">${o.spread.home?.line != null ? e.home.abbr + ' ' + (o.spread.home.line > 0 ? '+' : '') + o.spread.home.line : '—'}</b>${C.fmtAm(o.spread.home?.close)}</div><div class="od">TOTAL<b data-px="${e.id}|tot">${o.total.line ?? '—'}</b>${o.total.over?.openLine != null && o.total.over.openLine !== o.total.line ? `<span class="small">opened ${o.total.over.openLine}</span>` : C.fmtAm(o.total.over?.close)}</div></div>
-  <div class="src">${esc(o.provider)}${o.failover ? '' : ' via ESPN'}${V4.fairTxt(e, C)} · <span class="age${stale() ? ' st' : ''}">${stale() ? ic('clock') + ' stale · ' : ''}${ageTxt()}</span>${P?.ml ? ` · <a href="${P.url}" target="_blank" rel="noopener">Polymarket</a> ${e.away.abbr} ${pct(P.ml.away)} / ${e.home.abbr} ${pct(P.ml.home)}` : ''}</div>` : '<div class="src">No odds posted on ESPN for this game.</div>'}
+  <div class="src">${esc(o.provider)}${o.failover ? '' : ' via ESPN'}${V4.fairTxt(e, C)} · <span class="age${stale() ? ' st' : ''}">${stale() ? ic('clock') + ' stale · ' : ''}${ageTxt()}</span>${P?.ml ? ` · <span class="credit">Data: Polymarket</span> ${e.away.abbr} ${pct(P.ml.away)} / ${e.home.abbr} ${pct(P.ml.home)}` : ''}${S.kal?.[e.id] ? ' · <span class="credit">Data: Kalshi</span>' : ''}</div>` : '<div class="src">No odds posted on ESPN for this game.</div>'}
   <div class="actions"><button class="btn sm" data-act="intel" data-id="${e.id}">Details</button><button class="btn sm" data-act="desk" data-id="${e.id}">Desk grade</button><button class="btn sm" data-act="track" data-id="${e.id}">Track bet</button></div></div>`;
 }
 export const ctx = {};

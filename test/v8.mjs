@@ -24,7 +24,7 @@ for (const [tag, vp] of [['d', { width: 1440, height: 900 }], ['m', { width: 390
   await p.locator('#pCard').scrollIntoViewIfNeeded(); await p.screenshot({ path: `${OUT}/v8-${tag}-player-card.png` });
   // #97 roster sparklines
   await p.click('[data-act="pscan"]'); await p.waitForFunction(() => EP.prop.scan?.rows.length > 3, null, { timeout: 90000 }).catch(() => {}); await p.waitForTimeout(1500);
-  const rr = await p.evaluate(() => { const t = [...document.querySelectorAll('table')].find(t => /Last 10/.test(t.rows[0]?.innerText) && /L20/.test(t.rows[0]?.innerText)); return t ? { rows: t.rows.length - 1, sk: t.querySelectorAll('svg.psk').length } : null; });
+  const rr = await p.evaluate(() => { const t = [...document.querySelectorAll('table')].find(t => /Last 10/i.test(t.rows[0]?.innerText) && /L20/i.test(t.rows[0]?.innerText)); return t ? { rows: t.rows.length - 1, sk: t.querySelectorAll('svg.psk').length } : null; });
   ok(rr && rr.rows > 3 && rr.sk === rr.rows, `${tag}: roster table sparkline in every row (${rr?.rows} rows)`);
   ok(errs.length === 0, `${tag}: no page errors ${errs.join('; ')}`); await ctx.close(); }
 console.log(`\n${pass} passed, ${fail} failed`); await b.close(); process.exit(fail ? 1 : 0);

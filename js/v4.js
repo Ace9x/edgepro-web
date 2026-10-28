@@ -10,7 +10,8 @@ import * as L from './learn.js';
 import * as St from './stale.js';
 import * as I from './intel.js';
 const $ = s => document.querySelector(s);
-const LS = { get: (k, d) => { try { return JSON.parse(localStorage.getItem('ep_' + k)) ?? d; } catch { return d; } }, set: (k, v) => localStorage.setItem('ep_' + k, JSON.stringify(v)) };
+const clean = v => typeof v === 'string' ? v.replace(/[<>`]/g, '').slice(0, 2000) : Array.isArray(v) ? v.map(clean) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clean(x)])) : v; // user text never carries markup (XSS defence in depth)
+const LS = { get: (k, d) => { try { return JSON.parse(localStorage.getItem('ep_' + k)) ?? d; } catch { return d; } }, set: (k, v) => localStorage.setItem('ep_' + k, JSON.stringify(clean(v))) };
 const ic = n => `<svg class="ds-ic" aria-hidden="true"><use href="#i-${n}"/></svg>`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const am = v => (v == null ? '—' : C.oddsFmt() === 'dec' ? C.amToDec(v).toFixed(2) : (v > 0 ? '+' : '−') + Math.abs(v)).replace('−0', '0');

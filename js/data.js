@@ -57,7 +57,7 @@ export function matchPoly(ev, list) {
   const hn = ev.home.name.toLowerCase(), an = ev.away.name.toLowerCase();
   const pe = list.find(p => endsD(p.slug) && p.title.toLowerCase().includes(hn) && p.title.toLowerCase().includes(an)) || list.find(p => /-\d{4}-\d\d-\d\d$/.test(p.slug) && endsD(p.slug) && p.slug.includes(ev.home.abbr.toLowerCase()) && p.slug.includes(ev.away.abbr.toLowerCase()));
   if (!pe) return null;
-  const out = { slug: pe.slug, url: 'https://polymarket.com/event/' + pe.slug, volume: pe.volume, totals: [] };
+  const out = { slug: pe.slug, volume: pe.volume, totals: [] };
   out.slug = pe.slug;
   out.raw = (pe.markets || []).filter(m => !m.closed && m.sportsMarketType).map(m => ({ t: m.sportsMarketType, q: m.question, g: m.groupItemTitle, line: m.line, outcomes: m.outcomes, prices: m.outcomePrices, bid: +m.bestBid, ask: +m.bestAsk, liq: +m.liquidityNum || 0 }));
   for (const m of pe.markets || []) {
