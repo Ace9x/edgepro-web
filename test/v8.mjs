@@ -4,7 +4,7 @@ const BASE = process.env.BASE || 'https://ace9x.github.io/edgepro-web/', OUT = '
 let pass = 0, fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); c ? pass++ : fail++; };
 const b = await chromium.launch({ headless: false });
 for (const [tag, vp] of [['d', { width: 1440, height: 900 }], ['m', { width: 390, height: 844 }]]) {
-  const ctx = await b.newContext({ viewport: vp }); await ctx.addInitScript(() => { localStorage.setItem('ep_consent', '{"v":"2026-10-22"}'); localStorage.setItem('ep_whats', '"2026-10-22c"'); localStorage.setItem('ep_league', '"nba"'); localStorage.setItem('ep_league_set', '1'); localStorage.setItem('EP_NO_HEALTH', '1'); });
+  const ctx = await b.newContext({ viewport: vp }); await ctx.addInitScript(() => { localStorage.setItem('ep_consent', '{"v":"2026-10-28"}'); localStorage.setItem('ep_whats', '"2026-10-28"'); localStorage.setItem('ep_league', '"nba"'); localStorage.setItem('ep_league_set', '1'); localStorage.setItem('EP_NO_HEALTH', '1'); });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto(BASE + '#props'); await p.waitForFunction(() => window.EP?.events?.length, null, { timeout: 40000 });
   const gid = await p.evaluate(() => EP.events.find(e => e.state === 'pre')?.id || EP.events[0].id); await p.selectOption('#pGame', gid);

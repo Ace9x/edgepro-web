@@ -5,7 +5,7 @@ const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Geck
 let pass = 0, fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); c ? pass++ : fail++; };
 const b = await chromium.launch(); const uptime = {};
 for (const [tag, vp] of [['m', { width: 390, height: 844 }], ['d', { width: 1440, height: 900 }]]) {
-  const ctx = await b.newContext({ viewport: vp, userAgent: UA, extraHTTPHeaders: HDR }); await ctx.addInitScript(() => { localStorage.setItem('ep_consent', '{"v":"2026-10-22"}'); localStorage.setItem('ep_whats', '"2026-10-22c"'); });
+  const ctx = await b.newContext({ viewport: vp, userAgent: UA, extraHTTPHeaders: HDR }); await ctx.addInitScript(() => { localStorage.setItem('ep_consent', '{"v":"2026-10-28"}'); localStorage.setItem('ep_whats', '"2026-10-28"'); });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); const shot = n => p.screenshot({ path: `${OUT}/v6-${tag}-${n}.png` });
   const LGS = (process.env.LGS || 'nba,nhl').split(','), LG0 = LGS[0];
   for (const lg of LGS) {

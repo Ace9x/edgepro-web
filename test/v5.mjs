@@ -4,7 +4,7 @@ const BASE = process.env.BASE || 'https://ace9x.github.io/edgepro-web/', OUT = '
 const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
 let fail = 0, pass = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); c ? pass++ : fail++; };
 const b = await chromium.launch();
-const mk = async (vp, consent = true) => { const ctx = await b.newContext({ viewport: vp, userAgent: UA, extraHTTPHeaders: { 'sec-ch-ua': '"Chromium";v="140", "Google Chrome";v="140"' } }); if (consent) await ctx.addInitScript(() => { if (!localStorage.getItem('ep_consent')) localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-22', at: new Date().toISOString() })); localStorage.setItem('ep_whats', '"2026-10-22c"'); });
+const mk = async (vp, consent = true) => { const ctx = await b.newContext({ viewport: vp, userAgent: UA, extraHTTPHeaders: { 'sec-ch-ua': '"Chromium";v="140", "Google Chrome";v="140"' } }); if (consent) await ctx.addInitScript(() => { if (!localStorage.getItem('ep_consent')) localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-28', at: new Date().toISOString() })); localStorage.setItem('ep_whats', '"2026-10-28"'); });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|ERR_|CORS|net::/.test(m.text())) errs.push(m.text()); }); return { ctx, p, errs }; };
 for (const [tag, vp] of [['m', { width: 390, height: 844 }], ['d', { width: 1440, height: 900 }]]) {
   const { ctx, p, errs } = await mk(vp); const shot = n => p.screenshot({ path: `${OUT}/v5-${tag}-${n}.png`, fullPage: false });
@@ -23,7 +23,7 @@ for (const [tag, vp] of [['m', { width: 390, height: 844 }], ['d', { width: 1440
   await p.goto(BASE + '#s/999999999.bogus'); await p.waitForSelector('text=can\'t be verified', { timeout: 15000 }).catch(() => {}); ok(await p.isVisible('text=can\'t be verified'), `${tag}: forged share link rejected`); await shot('share-forged');
   ok(!errs.length, `${tag}: no console errors ${errs.slice(0, 3).join(' | ')}`); await ctx.close(); }
 { // what's new shows for a returning user once
-  const { ctx, p } = await mk({ width: 390, height: 844 }, false); await ctx.addInitScript(() => { localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-22' })); if (!sessionStorage.x) { localStorage.setItem('ep_whats', '"old"'); localStorage.setItem('ep_bets', '[{"id":"q"}]'); sessionStorage.x = 1; } });
+  const { ctx, p } = await mk({ width: 390, height: 844 }, false); await ctx.addInitScript(() => { localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-28' })); if (!sessionStorage.x) { localStorage.setItem('ep_whats', '"old"'); localStorage.setItem('ep_bets', '[{"id":"q"}]'); sessionStorage.x = 1; } });
   await p.goto(BASE); await p.waitForTimeout(2500); ok(await p.isVisible('text=What’s new'), 'whats new for returning user'); await p.click('[data-act=closemodal]'); await p.reload(); await p.waitForTimeout(2500); ok(!(await p.isVisible('text=What’s new')), 'whats new only once'); await ctx.close(); }
 if (process.env.PW_FILE) { // signed share link round trip on a throwaway account
   const PW = fs.readFileSync(process.env.PW_FILE, 'utf8').trim(); const { ctx, p, errs } = await mk({ width: 390, height: 844 });

@@ -3,7 +3,7 @@ import { chromium } from 'playwright'; import fs from 'fs';
 const BASE = process.env.BASE || 'https://ace9x.github.io/edgepro-web/', OUT = '/workspace/edgepro-shots/v4'; fs.mkdirSync(OUT, { recursive: true });
 let pass = 0, fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); c ? pass++ : fail++; };
 const b = await chromium.launch({ headless: false }); // real browser: its own UA + sec-ch-ua, no spoofing
-const init = () => { localStorage.setItem('ep_consent', '{"v":"2026-10-22"}'); localStorage.setItem('ep_whats', '"2026-10-22c"'); localStorage.setItem('ep_whats_seen', '"2026-10-22c"'); };
+const init = () => { localStorage.setItem('ep_consent', '{"v":"2026-10-28"}'); localStorage.setItem('ep_whats', '"2026-10-28"'); localStorage.setItem('ep_whats_seen', '"2026-10-28"'); };
 const page = async (vp, lg, block) => { const ctx = await b.newContext({ viewport: vp }); await ctx.addInitScript(init); await ctx.addInitScript(l => { localStorage.setItem('ep_league', JSON.stringify(l)); localStorage.setItem('ep_league_set', '1'); localStorage.setItem('EP_NO_HEALTH', '1'); }, lg);
   if (block) await ctx.route(block, r => r.abort()); const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); return { ctx, p, errs }; };
 // 1) scores failover: block the two ESPN site APIs, scores must come from the CDN (NFL) or the relay (NHL)

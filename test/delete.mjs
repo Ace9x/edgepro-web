@@ -3,7 +3,7 @@ import { chromium } from 'playwright'; import fs from 'fs';
 const BASE = process.env.BASE || 'https://ace9x.github.io/edgepro-web/', EMAIL = process.env.EMAIL, PW = fs.readFileSync(process.env.PW_FILE, 'utf8').trim();
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
 const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36' });
-await ctx.addInitScript(() => localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-22', at: new Date().toISOString() })));
+await ctx.addInitScript(() => localStorage.setItem('ep_consent', JSON.stringify({ v: '2026-10-28', at: new Date().toISOString() })));
 const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
 await p.goto(BASE + '#tools'); await p.waitForSelector('#aE'); await p.fill('#aE', EMAIL); await p.fill('#aP', PW); await p.click('[data-act=ein]'); await p.waitForSelector('text=Signed in as', { timeout: 20000 }); ok(true, 'signed in');
 const seed = await p.evaluate(async () => { const A = await import('./js/account.js'); await A.init(); const c = A.client(); const uid = (await c.auth.getUser()).data.user.id;
