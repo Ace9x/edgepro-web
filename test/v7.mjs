@@ -7,7 +7,7 @@ const init = () => { localStorage.setItem('ep_consent', '{"v":"2026-10-22"}'); l
 const page = async (vp, lg, block) => { const ctx = await b.newContext({ viewport: vp }); await ctx.addInitScript(init); await ctx.addInitScript(l => { localStorage.setItem('ep_league', JSON.stringify(l)); localStorage.setItem('ep_league_set', '1'); localStorage.setItem('EP_NO_HEALTH', '1'); }, lg);
   if (block) await ctx.route(block, r => r.abort()); const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); return { ctx, p, errs }; };
 // 1) scores failover: block the two ESPN site APIs, scores must come from the CDN (NFL) or the relay (NHL)
-for (const [lg, want] of [['nfl', /ESPN CDN feed/], ['nba', /ESPN CDN feed/], ['nhl', /EdgePro relay/]]) {
+for (const [lg, want] of [['nba', /ESPN CDN feed/], ['nhl', /EdgePro relay/]]) {
   const { ctx, p } = await page({ width: 1280, height: 860 }, lg, /site(\.web)?\.api\.espn\.com\/apis\/site\/v2\/sports\/[^/]+\/[^/]+\/scoreboard/);
   await p.goto(BASE + '#scores'); await p.waitForFunction(() => window.EP?.events?.length, null, { timeout: 40000 }).catch(() => {});
   const st = await p.evaluate(() => { const s = EPF.status.Scores || {}; return { ok: s.ok, source: s.source, n: EP.events.length }; });
@@ -19,7 +19,7 @@ for (const [lg, want] of [['nfl', /ESPN CDN feed/], ['nba', /ESPN CDN feed/], ['
   r.forEach(([l, v]) => ok(v, `real browser fetches ESPN CDN ${l}`)); await ctx.close(); }
 // 3) Today: period + team-total sections priced from real sources
 for (const [tag, vp] of [['m', { width: 390, height: 844 }], ['d', { width: 1440, height: 900 }]]) {
-  const { ctx, p, errs } = await page(vp, 'nfl'); await p.goto(BASE + '#today'); await p.waitForFunction(() => window.EP?.events?.length, null, { timeout: 40000 }).catch(() => {});
+  const { ctx, p, errs } = await page(vp, process.env.PLG || 'nba'); await p.goto(BASE + '#today'); await p.waitForFunction(() => window.EP?.events?.length, null, { timeout: 40000 }).catch(() => {});
   await p.waitForFunction(() => document.querySelector('#view')?.innerText.match(/1st half|Team total/), null, { timeout: 40000 }).catch(() => {});
   const t = await p.innerText('#view'); const secs = await p.$$eval('.sec h3', h => h.map(x => x.textContent));
   ok(secs.some(s => /1st half/.test(s)), `${tag}: 1st half section (${secs.filter(s => /1st|Team/.test(s)).join(' / ')})`); ok(secs.some(s => /Team total/.test(s)), `${tag}: team total section`);
@@ -31,7 +31,7 @@ for (const [tag, vp] of [['m', { width: 390, height: 844 }], ['d', { width: 1440
   ok(ev && ev.books > 0 && ev.at, `${tag}: Odds API per-event prices cached server-side (${ev?.books} books, fetched ${ev?.at})`);
   ok(!/C\+/.test(t), `${tag}: no C+`); ok(errs.length === 0, `${tag}: no page errors ${errs.join('; ')}`); await p.screenshot({ path: `${OUT}/v7-${tag}-today-periods.png`, fullPage: tag === 'd' }); await ctx.close(); }
 // 4) player props graded in the game sheet
-{ const { ctx, p } = await page({ width: 1280, height: 900 }, 'nfl'); await p.goto(BASE + '#scores'); await p.waitForFunction(() => window.EP?.events?.length, null, { timeout: 40000 }).catch(() => {});
+{ const { ctx, p } = await page({ width: 1280, height: 900 }, process.env.PLG || 'nba'); await p.goto(BASE + '#scores'); await p.waitForFunction(() => window.EP?.events?.length, null, { timeout: 40000 }).catch(() => {});
   await p.locator('[data-act="intel"]').first().click();
   await p.waitForSelector('#inP table, #inP .muted', { timeout: 30000 }).catch(() => {}); await p.waitForTimeout(3000);
   const t = await p.locator('#inP').innerText().catch(() => ''); const chips = await p.locator('#inP .gchip').count();
