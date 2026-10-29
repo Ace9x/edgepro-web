@@ -28,4 +28,10 @@ export async function syncNow() { if (!user) return; await init();
   const { error: e2 } = await sb.from('edgepro_user_data').upsert({ user_id: user.id, bets, grades, updated_at: new Date().toISOString() }); if (e2) throw e2;
   localStorage.ep_synced = new Date().toISOString(); emit();
 }
+import * as PK from './passkey.js';
+export const pkOK = PK.supported, pkLabel = PK.label;
+export async function passkeyIn() { await init(); await PK.signIn(sb); }
+export async function passkeyAdd() { await init(); return PK.register(sb, { app: 'EdgePro' }); }
+export async function passkeys() { await init(); return PK.list(sb); }
+export async function passkeyDel(id) { await init(); return PK.remove(sb, id); }
 export const client = () => sb;
