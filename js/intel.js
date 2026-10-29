@@ -32,7 +32,8 @@ export async function props(e, oddsId, market) {
   return { fetched: r.fetched, rows: Object.values(by).map(x => ({ ...x, bestO: best(x.over), bestU: best(x.under) })).sort((a, b) => a.player.localeCompare(b.player) || a.line - b.line) };
 }
 /** period + team-total prices for one event (Odds API per-event markets; server caches 3h and enforces a daily credit budget) */
-export async function eventMarkets(e, oddsId) { const sp = sportOf(e); if (!sp || !oddsId) return null;
+const EVENT_SPORTS = new Set(['americanfootball_nfl', 'basketball_nba', 'icehockey_nhl', 'baseball_mlb', 'americanfootball_ncaaf', 'basketball_ncaab', 'basketball_wnba']); // must match EVENT_MKTS in ep-odds
+export async function eventMarkets(e, oddsId) { const sp = sportOf(e); if (!sp || !oddsId || !EVENT_SPORTS.has(sp)) return null;
   const pr = await cached('ev' + oddsId, () => F.pull('Odds API (periods)', 'ev:' + oddsId, [{ name: 'The Odds API per-event (via EdgePro server)', run: () => j(`${FN}?kind=event&sport=${sp}&event=${oddsId}`).then(r => { if (r.skip || r.error) { const x = new Error(r.error || 'skipped'); x.soft = true; throw x; } return r; }), ok: r => Array.isArray(r?.data?.bookmakers) }], { retries: 0 }));
   return { books: pr.v.data.bookmakers, fetched: pr.v.fetched || pr.at, note: pr.v.note }; }
 /** Polymarket player-prop markets for a game (liquid ones only: ≥$500 liquidity and ≤6¢ spread) keyed "player|line" → over mid/ask */
