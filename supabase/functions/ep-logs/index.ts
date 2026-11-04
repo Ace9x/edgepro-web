@@ -1,6 +1,6 @@
 // EdgePro nightly game-log loader -> public.ep_game_logs (read-only to clients).
 // NFL: nflverse stats_player_week (open data, GitHub releases). NHL: NHL stats REST (skater + goalie per-game summaries).
-// Idempotent upserts; runs at most once per 6h unless ?force=1 with the cron secret. Called nightly by pg_cron.
+// Idempotent upserts; runs at most once per 6h unless ?force=1 with the service-role bearer or x-cron-secret (EP_CRON_SECRET). Called nightly by pg_cron.
 import { createClient } from "npm:@supabase/supabase-js@2";
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const H = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" };
@@ -26,7 +26,11 @@ async function nhl(season: number) { const sid = `${season}${season + 1}`, out: 
   return out; }
 Deno.serve(async (req) => {
   const u = new URL(req.url); const { data: last } = await db.rpc("ep_cache_get", { key: "logs:last", max_age: 6 * 3600 });
-  if (last && u.searchParams.get("force") !== "1") return out({ skipped: "loaded within 6h", last });
+  const tok = (req.headers.get("authorization") || "").replace(/^Bearer /i, "");
+  const SR = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "", CS = Deno.env.get("EP_CRON_SECRET") || "";
+  const force = u.searchParams.get("force") === "1" && ((SR && tok === SR) || (CS && req.headers.get("x-cron-secret") === CS));
+  if (u.searchParams.get("force") === "1" && !force) return out({ error: "force requires the cron secret" }, 401);
+  if (last && !force) return out({ skipped: "loaded within 6h", last });
   const now = new Date(), nflS = now.getUTCMonth() < 2 ? now.getUTCFullYear() - 1 : now.getUTCFullYear(), nhlS = now.getUTCMonth() < 8 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
   const res: Record<string, unknown> = {};
   for (const [lg, f] of [["nfl", () => nfl(nflS)], ["nhl", () => nhl(nhlS)]] as const) {
