@@ -1,7 +1,7 @@
 // Server-side settlement for public EdgePro picks. Results, closing price and CLV come only from ESPN here,
 // never from the client, so profile records are verified. Idempotent; anyone may trigger it (it only reads ESPN).
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
-const H = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Content-Type": "application/json" };
+const H = { "Access-Control-Allow-Origin": "https://ace9x.github.io", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Content-Type": "application/json" };
 const dec = (a: number) => (a > 0 ? 1 + a / 100 : 1 + 100 / -a);
 const prob = (a: number) => (a > 0 ? 100 / (a + 100) : -a / (-a + 100));
 Deno.serve(async (req) => {

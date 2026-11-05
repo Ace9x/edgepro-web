@@ -3,7 +3,7 @@
 // Idempotent upserts; runs at most once per 6h unless ?force=1 with the service-role bearer or x-cron-secret (EP_CRON_SECRET). Called nightly by pg_cron.
 import { createClient } from "npm:@supabase/supabase-js@2";
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-const H = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" };
+const H = { "Access-Control-Allow-Origin": "https://ace9x.github.io", "Vary": "Origin", "Content-Type": "application/json" };
 const out = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: H });
 const UA = { "User-Agent": "EdgePro/1.0 (https://ace9x.github.io/edgepro-web/)" };
 function csv(t: string) { const rows: string[][] = []; let r: string[] = [], f = "", q = false;

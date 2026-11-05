@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const UA = "EdgePro/1.0 (https://ace9x.github.io/edgepro-web/; contact: https://github.com/ace9x/edgepro-web/issues)";
-const H = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Content-Type": "application/json" };
+const H = { "Access-Control-Allow-Origin": "https://ace9x.github.io", "Vary": "Origin", "Access-Control-Allow-Headers": "*", "Content-Type": "application/json" };
 const out = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: H });
 const DIR: Record<string, number> = { N: 0, NNE: 22.5, NE: 45, ENE: 67.5, E: 90, ESE: 112.5, SE: 135, SSE: 157.5, S: 180, SSW: 202.5, SW: 225, WSW: 247.5, W: 270, WNW: 292.5, NW: 315, NNW: 337.5 };
 async function cached<T>(k: string, age: number, f: () => Promise<T>): Promise<T> { const { data } = await db.rpc("ep_cache_get", { key: k, max_age: age }); if (data) return data as T; const v = await f(); await db.rpc("ep_cache_put", { key: k, b: v }); return v; }

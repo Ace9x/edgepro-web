@@ -2,7 +2,7 @@
 // ESPN CDN feed has no league (NHL, soccer) or when the browser can't reach ESPN directly. 60s shared cache.
 import { createClient } from "npm:@supabase/supabase-js@2";
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-const H = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Content-Type": "application/json" };
+const H = { "Access-Control-Allow-Origin": "https://ace9x.github.io", "Vary": "Origin", "Access-Control-Allow-Headers": "*", "Content-Type": "application/json" };
 const out = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: H });
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: H });

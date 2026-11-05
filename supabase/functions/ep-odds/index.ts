@@ -2,7 +2,7 @@
 // Shared cache keeps free-tier credit use low: game odds 30 min per sport, props 60 min per event+market.
 import { createClient } from "npm:@supabase/supabase-js@2";
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-const H = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Content-Type": "application/json" };
+const H = { "Access-Control-Allow-Origin": "https://ace9x.github.io", "Vary": "Origin", "Access-Control-Allow-Headers": "*", "Content-Type": "application/json" };
 const SPORTS = new Set(["baseball_mlb","americanfootball_nfl","basketball_nba","icehockey_nhl","basketball_wnba","americanfootball_ncaaf","basketball_ncaab","soccer_epl","soccer_spain_la_liga","soccer_italy_serie_a","soccer_germany_bundesliga","soccer_france_ligue_one","soccer_usa_mls","soccer_uefa_champs_league"]);
 const PROPS = /^(player_[a-z_]+|batter_[a-z_]+|pitcher_[a-z_]+)$/;
 // per-event period / team-total markets, fixed server-side so a client can't run up credits

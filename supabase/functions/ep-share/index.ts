@@ -2,7 +2,7 @@
 // POST {pick_id} (signed-in owner) -> {token}. GET ?t=token -> the pick as stored on the server, checked against the signature.
 // The token is "<pick id>.<HMAC-SHA256 over id|user|created_at|price|label|game_start>", so a link can't be forged or point at edited data.
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
-const H = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Content-Type": "application/json" };
+const H = { "Access-Control-Allow-Origin": "https://ace9x.github.io", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Content-Type": "application/json" };
 const J = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: H });
 const enc = new TextEncoder();
 const b64u = (u: Uint8Array) => btoa(String.fromCharCode(...u)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");

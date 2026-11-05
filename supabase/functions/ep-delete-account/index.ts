@@ -1,6 +1,6 @@
 // scope "edgepro": deletes all EdgePro cloud data for the caller; scope "account": also deletes the sign-in itself (shared with other Ace9x apps) (profile, picks, follows, synced data, avatar files).
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
-const H = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Content-Type": "application/json" };
+const H = { "Access-Control-Allow-Origin": "https://ace9x.github.io", "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Content-Type": "application/json" };
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: H });
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "POST only" }), { status: 405, headers: H });

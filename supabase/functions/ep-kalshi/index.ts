@@ -1,5 +1,5 @@
 // CORS relay for Kalshi's public, keyless market data (Kalshi sends no CORS headers). Game series only; 2-minute edge cache.
-const H = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=120" };
+const H = { "Access-Control-Allow-Origin": "https://ace9x.github.io", "Vary": "Origin", "Content-Type": "application/json", "Cache-Control": "public, max-age=120" };
 const OK = new Set(["KXMLBGAME", "KXNFLGAME", "KXNBAGAME", "KXNHLGAME"]);
 Deno.serve(async (req) => {
   const s = new URL(req.url).searchParams.get("series") || "";
