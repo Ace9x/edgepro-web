@@ -13,3 +13,4 @@ header{background:#000;border-bottom:0}
 .ds-sheet::before{width:40px;height:5px;background:#3A3A3C}
 .tabs{background:#000!important;border-top:1px solid #1C1C1E!important}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+#view table{display:block;max-width:100%;overflow-x:auto}
