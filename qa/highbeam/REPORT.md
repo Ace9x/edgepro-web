@@ -14,3 +14,4 @@ Not covered: real Safari engine; no tap-by-tap assertion of every button's actio
 - Local gate Chromium: 32/32, scores served by "ESPN site.web API", 0 console errors. Unit 16/16.
 - WebKit (webkit-2370): launches but this box's build has no TLS, so every HTTPS fetch fails; scores never load. Layout checks pass (30/32); console check fails on TLS errors. apt install of glib-networking failed (mirror SSL errors). WebKit is NOT verified for data/console.
 - Before/after: qa/highbeam/before/ (704b602, pre-Highbeam) vs qa/highbeam/v2-local/ and live/.
+- Live gate (sw edgepro-20261104224002 confirmed, commit 7169a12): Chromium 32/32, 0 console errors, scores from ESPN site.web API. Shots: qa/highbeam/live-v2/.
