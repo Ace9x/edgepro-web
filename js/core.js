@@ -14,7 +14,7 @@ export function arb(a1, a2) { const s = 1 / amToDec(a1) + 1 / amToDec(a2); retur
 // Best price among quotes [{book, price}]
 export const best = qs => qs.filter(q => q.price != null).sort((x, y) => amToDec(y.price) - amToDec(x.price))[0] || null;
 
-// ---------- Research Desk grading (Fan's desk rules) ----------
+// ---------- Research Desk grading (desk rules) ----------
 export const JUICE_CAP = -230;
 export const TIERS = [['A', 0.75], ['B', 0.68], ['C', 0.58], ['D', 0]];
 export const tierOf = p => TIERS.find(([, t]) => p >= t)[0];

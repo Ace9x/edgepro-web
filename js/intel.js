@@ -9,7 +9,8 @@ export const SPORT = { mlb: ['baseball_mlb'], nfl: ['americanfootball_nfl'], nba
 export const PROP_MARKETS = { nba: ['player_points', 'player_rebounds', 'player_assists', 'player_threes'], wnba: ['player_points', 'player_rebounds', 'player_assists'], ncaab: ['player_points'],
   nfl: ['player_pass_yds', 'player_rush_yds', 'player_reception_yds', 'player_anytime_td'], ncaaf: ['player_pass_yds', 'player_rush_yds'], mlb: ['batter_hits', 'batter_total_bases', 'pitcher_strikeouts'], nhl: ['player_points', 'player_shots_on_goal'] };
 const sportOf = e => (Array.isArray(SPORT[e.league]) ? SPORT[e.league][0] : SPORT[e.league]?.[e.path]);
-const mem = {}; const j = async u => { const r = await fetch(u); const b = await r.json().catch(() => ({})); if (!r.ok) throw new Error(b.error || r.status); return b; };
+const mem = {}; const espnF = async (u, o) => { if (!u.includes('//site.api.espn.com/')) return fetch(u, o); try { const r = await fetch(u.replace('//site.api.espn.com/', '//site.web.api.espn.com/'), o); if (r.ok) return r; } catch {} return fetch(u, o); }; // site.web host first (site.api CORS-blocks some browsers), site.api as fallback
+const j = async u => { const r = await espnF(u); const b = await r.json().catch(() => ({})); if (!r.ok) throw new Error(b.error || r.status); return b; };
 const cached = (k, f) => (mem[k] ||= f().catch(x => { delete mem[k]; throw x; }));
 const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 export async function books(e) {

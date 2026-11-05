@@ -2,7 +2,8 @@ import { tableLog } from './data.js';
 // "Ask" — natural-language stat search answered only from free ESPN endpoints (StatMuse has no public API; nothing is scraped).
 const W = 'https://site.web.api.espn.com/apis', S = 'https://site.api.espn.com/apis/site/v2/sports';
 export const LG = { 46: ['basketball/nba', 'NBA'], 28: ['football/nfl', 'NFL'], 10: ['baseball/mlb', 'MLB'], 90: ['hockey/nhl', 'NHL'], 59: ['basketball/wnba', 'WNBA'], 23: ['football/college-football', 'NCAAF'], 41: ['basketball/mens-college-basketball', 'NCAAB'] };
-const j = async u => { const r = await fetch(u); if (!r.ok) throw new Error('ESPN ' + r.status); return r.json(); };
+const espnF = async (u, o) => { if (!u.includes('//site.api.espn.com/')) return fetch(u, o); try { const r = await fetch(u.replace('//site.api.espn.com/', '//site.web.api.espn.com/'), o); if (r.ok) return r; } catch {} return fetch(u, o); }; // site.web host first (site.api CORS-blocks some browsers), site.api as fallback
+const j = async u => { const r = await espnF(u); if (!r.ok) throw new Error('ESPN ' + r.status); return r.json(); };
 // stat words → ESPN game-log labels (first label found in the log wins)
 const STAT = [
   [/\b(points?|pts|scor\w*)\b/, ['PTS']], [/\b(rebounds?|reb|boards)\b/, ['REB']], [/\b(assists?|ast|dimes)\b/, ['AST', 'A']],

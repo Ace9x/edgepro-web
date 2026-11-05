@@ -1,6 +1,6 @@
 // Trend tracker: last 5 / last 10 for game total, team total, and first period (1Q / 1P / 1H / 1st inning) from ESPN linescores.
 import { teamSchedule } from './ask.js';
-const S = 'https://site.api.espn.com/apis/site/v2/sports';
+const S = 'https://site.web.api.espn.com/apis/site/v2/sports'; // site.web host (site.api is CORS-blocked in some browsers)
 const etDay = iso => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).replace(/-/g, '');
 const sbCache = {};
 async function board(path, day) { const k = path + day; return (sbCache[k] ||= fetch(`${S}/${path}/scoreboard?dates=${day}&limit=300`).then(r => (r.ok ? r.json() : { events: [] })).catch(() => ({ events: [] }))); }
