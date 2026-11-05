@@ -1,0 +1,15 @@
+/* Highbeam visual layer (Nov 4 2026): black, one signal green, amber for warnings, big tabular numbers, pill buttons, thumb-zone tabs. Visual only. */
+:root,[data-theme=dark]{--bg:#000;--surface:#0F0F10;--surface-2:#1C1C1E;--surface-3:#2A2A2D;--line:#2A2A2D;--text:#fff;--text-2:#A1A1A6;--text-3:#8E8E93;
+ --bg2:#0F0F10;--bg3:#1C1C1E;--tx:#fff;--mu:#A1A1A6;--gr:#06C167;--yl:#FFB020;--amber:#FFB020;--rd:#FF453A;--bl:#0A84FF;
+ --brand:#06C167;--brand-2:#06C167;--brand-ink:#000;--brand-grad:#06C167;--r-md:20px;--r-lg:20px;--r-xl:28px;--tap:48px}
+body{font-family:Inter,system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums}
+header{background:#000;border-bottom:0}
+.ace-btn,.ds-btn--primary{background:#06C167!important;color:#000!important;border-radius:999px;min-height:48px;font-weight:900}
+.ds-btn{border-radius:999px;min-height:48px}.ds-btn:active,.ace-btn:active{transform:scale(.97)}
+.chip{min-height:44px;display:inline-flex;align-items:center;border-radius:999px;background:#1C1C1E;border:0}
+.chip.on{background:#fff!important;color:#000!important}
+.ds-card,.card{background:#1C1C1E;border:0;border-radius:20px}
+.ds-sheet{border-radius:28px 28px 0 0;background:#0F0F10}
+.ds-sheet::before{width:40px;height:5px;background:#3A3A3C}
+.tabs{background:#000!important;border-top:1px solid #1C1C1E!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
